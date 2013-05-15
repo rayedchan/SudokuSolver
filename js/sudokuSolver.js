@@ -1,4 +1,4 @@
-/* Sudoku Coordinate System 9x9 Board 
+/* Sudoku Coordinate System 9x9 Board
  *  
  *     A B C  D E F   G H I       
  *   A      |       |
@@ -15,6 +15,7 @@
  *
  *   [Left - Right] = x coordinate  rows 
  *   [Up - Down] = y coordinate columns
+ *   The sudoku board is made of 81 coordinate points. 
  */
 
 
@@ -50,17 +51,24 @@ $(document).ready(function()
         $.validateData(rowH);
         $.validateData(rowI);
         
-        //Build marker board. The sudoku board is made of 81 coordinate points. 
-        //Each coordinate point has it own corresponding marker list.
-        //The marker list represents all the possible numbers that can be place in that coordinate.
-        //Multi-dimensional array 9x9x9 cube 
-        var markerBoard = new Array(SUDOKU_BOARD_LENGTH);
-        var quadrantBoard = new Array(SUDOKU_BOARD_LENGTH); //corresponding coordinate to quadrant
+        /*
+         * Initialize boards
+         * puzzleBoard [2D Array 9x9] - The actual sudoku game board.
+         * markerBoard [3D Array 9x9x9] - Stores marker list for each coordinate point.
+         *      The marker list represents all the possible numbers that can be place in that coordinate.
+         * quadrantBoard [2D Array 9x9] - used to determine the quadrant for a coordinate
+         */
+        var puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); 
+        var markerBoard = new Array(SUDOKU_BOARD_LENGTH); 
+        var quadrantBoard = new Array(SUDOKU_BOARD_LENGTH);
         for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
+            //add columns to boards
+            puzzleBoard[i] = new Array(SUDOKU_BOARD_LENGTH);    
             markerBoard[i] = new Array(SUDOKU_BOARD_LENGTH);
             quadrantBoard[i] = new Array(SUDOKU_BOARD_LENGTH);
             
+            //create marker list for each coordinate
             for(j =0; j < SUDOKU_BOARD_LENGTH; j++)
             {
                 markerBoard[i][j] = [1,2,3,4,5,6,7,8,9]; 
@@ -68,13 +76,6 @@ $(document).ready(function()
         }
         //console.log(markerBoard);
 
-        //create puzzle board 9 x 9
-        var puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); //create an array allocated with 9 spots
-        for(i = 0; i < SUDOKU_BOARD_LENGTH; i++) //iterate array and add an array object
-        {
-             puzzleBoard[i] = new Array(SUDOKU_BOARD_LENGTH); //add column to puzzle board    
-        }
-        
         //Populate puzzle board with given values
         for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)//Iterate each row
         {
@@ -150,34 +151,27 @@ $(document).ready(function()
      * 3) Each quadrant must not contain duplicate numbers.
      * @param - puzzleBoard [2D Array] the current state of the sudoku board
      * @return - true if validation passes; false otherwise
-     * TODO: Merge for loops into one loop
      */
     $.validateSudokuConstraint = function(puzzleBoard)
     {
         var arrayNumberCounter = [0,0,0,0,0,0,0,0,0,0]; //counts the numbers used per row, column, and quadrant
         
-        //Validate rows
         for(var i = 0 ; i < SUDOKU_BOARD_LENGTH; i++)
         {
-            $.calculateRowCounters(puzzleBoard, arrayNumberCounter, i); //calculate counters       
+             //Validate rows
+            $.calculateRowCounters(puzzleBoard, arrayNumberCounter, i); //calculate row counters       
             if(!$.uniquenessConstraint(arrayNumberCounter)){return false;} //validate number uniqueness constraint
-            $.resetCounterArray(arrayNumberCounter); //reset number counter array    
-        }
-
-        //Validate columns
-        for(var j = 0 ; j < SUDOKU_BOARD_LENGTH; j++)
-        {
-            $.calculateColumnCounters(puzzleBoard, arrayNumberCounter, j); //calculate counters       
+            $.resetCounterArray(arrayNumberCounter); //reset number counter array   
+            
+            //Validate columns
+            $.calculateColumnCounters(puzzleBoard, arrayNumberCounter, i); //calculate column counters       
             if(!$.uniquenessConstraint(arrayNumberCounter)){return false;} //validate number uniqueness constraint
             $.resetCounterArray(arrayNumberCounter); //reset number counter array
-        }     
-        
-        //Validate quadrants
-        for(var k = 0 ; k < SUDOKU_BOARD_LENGTH; k++)
-        {
-            $.calculateQuadrantCounters(puzzleBoard, arrayNumberCounter, k);
+            
+            //Validate quadrants
+            $.calculateQuadrantCounters(puzzleBoard, arrayNumberCounter, i); //calulate quadrant counters
             if(!$.uniquenessConstraint(arrayNumberCounter)){return false;} //validate number uniqueness constraint
-            $.resetCounterArray(arrayNumberCounter); //reset number counter array
+            $.resetCounterArray(arrayNumberCounter); //reset number counter array 
         }
 
         return true; //at this point all validation pass 
