@@ -92,7 +92,7 @@ $(document).ready(function()
         }
         //console.log(quadrantBoard);
         //console.log(puzzleBoard);
-        //console.log($.validateSudokuConstraint(puzzleBoard)); //check if current board is valid
+        console.log($.validateSudokuConstraint(puzzleBoard)); //check if current board is valid
         
         var continuousLoop = true;
         while(continuousLoop)
@@ -109,6 +109,7 @@ $(document).ready(function()
                     {
                         for(k = 0; k < SUDOKU_BOARD_LENGTH; k++)
                         {
+                            markerBoard[i][j][k] = 0; //remove markers from self 
                             markerBoard[k][j][coordinateValue - 1] = 0; //remove markers from row
                             markerBoard[i][k][coordinateValue - 1] = 0; //remove markers from column
                             x = (k % 3) + (3 * (coordinateQuadrant % 3)); 
@@ -125,12 +126,56 @@ $(document).ready(function()
             break;
         }
        
-        //console.log(markerBoard);
+        console.log(markerBoard);
+        $.printMarkerBoardByQuadrant(markerBoard)
     });
 });
 
 (function($)
 {
+    /*
+     * Print marker list of each coordinate by column
+     * @param - markerBoard [3D Array]
+     */
+    $.printMarkerBoardByColumn = function (markerBoard)
+    {
+        for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var str = "";
+                for(k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                    str = str + " " + markerBoard[i][j][k];   
+                }
+                console.log(str);
+            }
+        }  
+    }
+    
+    /*
+     * Print marker list of each coordinate by quadrant
+     * @param - markerBoard [3D Array]
+     */
+    $.printMarkerBoardByQuadrant = function (markerBoard)
+    {
+        for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var x = (j % 3) + (3 * (i % 3)); 
+                var y = Math.floor(j / 3) + (3 * Math.floor(i / 3));
+                var str = "(" + x  + "," + y + ")";
+                
+                for(k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                    str = str + " " + markerBoard[x][y][k];   
+                }
+                console.log(str);
+            }
+        }  
+    }
+    
     /*
      * Validate the data of user input for a row.
      * Length of row must be nine. Only accept numbers. 
