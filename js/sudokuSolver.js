@@ -97,7 +97,7 @@ $(document).ready(function()
         var continuousLoop = true;
         while(continuousLoop)
         {
-            var madeProgress = false; //Placement of tilt or removal of markers = progress made
+            var madeProgress = false; //Placement of tile or removal of markers is considered making progress
             
             //Iterate entire puzzle board
             for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
@@ -125,22 +125,211 @@ $(document).ready(function()
                     }
                 }
             }
-            
-            $.printMarkerBoardByQuadrant(markerBoard);
+            madeProgress = $.horizontalMarkerSlice = (markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
+            madeProgress = $.verticalMarkerSlice = (markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
             madeProgress = $.oneMarkerLeftPlacement(puzzleBoard, markerBoard);//Place number for coordinates with one marker left
             madeProgress = $.lastNumberMarkerInQuadrantPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in quadrant             
             
             if(!madeProgress)
                 break;
         }
-        //console.log(markerBoard);
-        //$.printMarkerBoardByQuadrant(markerBoard);
+
+        $.printMarkerBoardByQuadrant(markerBoard);
         $.printPuzzleBoard(puzzleBoard);
+        
     });
 });
 
 (function($)
 {
+    /* Definition Vertical Marker - In a quadrant, there exist only one column 
+     * that contains the marker number(s). Inspect each quadrant for vertical
+     * markers. If a number with vertical is found, eliminate markers from 
+     * vertical line excluding the markers in the inspected quadrant.
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise.
+     * Note: There is a redundancy for isolated markers elimination. 
+     */
+    $.verticalMarkerSlice = function(markerBoard)
+    {
+        var madeProgress = false;
+            
+        //Iterate each quadrant
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {            
+            //iterate each number to check if there exist a single vertical marker 
+            for(var number = 1; number < 10; number++)
+            {
+                var colOneVertical = false;
+                var colTwoVertical = false;
+                var colThreeVertical = false;
+                var colMarkerEliminator = -1; //fixed row constant to eliminate markers from
+                
+                //Iterate each coordinate in quadrant
+                for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+                {
+                    var x = Math.floor(j / 3) + 3 * (i % 3);
+                    var y = j % 3 + 3 * Math.floor(i / 3);
+                    var col = Math.floor(j / 3);
+
+                    //iterate marker list for a coordinate column by column
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[x][y][k];
+                        
+                        //Column One inspection
+                        if(col == 0)
+                        {
+                            if(markerValue == number)
+                            {
+                                colOneVertical = true;
+                                colMarkerEliminator = x;
+                            }
+                        }
+
+                        //Column Two Inspection
+                        else if(col == 1)
+                        {
+                            if(markerValue == number)
+                            {
+                                colTwoVertical = true;
+                                colMarkerEliminator = x;
+                            }
+                        }
+
+                        //Column Three Inspection
+                        else
+                        {
+                            if(markerValue == number)
+                            {
+                                colThreeVertical = true;
+                                colMarkerEliminator = x;
+                            }
+
+                        }  
+
+                    }
+                }//end for loop [j]
+
+                //Determine if there exist a single row with vertical markers
+                if((colOneVertical? 1 : 0) + (colTwoVertical? 1 : 0) + (colThreeVertical? 1 : 0) == 1)
+                {
+                    madeProgress = true;
+                    var quadrantAdjustment = 3 * Math.floor(i / 3);
+                    var skipYCoordinateOne = 0 + quadrantAdjustment;
+                    var skipYCoordinateTwo = 1 + quadrantAdjustment;
+                    var skipYCoordinateThree = 2 + quadrantAdjustment;
+                    
+                    //eliminate markers for inspected number in column except for the markers in quadrant that is currently being inspected
+                    for(var z = 0; z < SUDOKU_BOARD_LENGTH; z++)
+                    {
+                        //skip markers in quadrant that is currently being inspected
+                         if(z == skipYCoordinateOne || z == skipYCoordinateTwo || z == skipYCoordinateThree)
+                             continue;
+                        
+                         markerBoard[colMarkerEliminator][z][number - 1] = 0;      
+                    }
+                }
+            }//end for loop [number]
+        }//end for loop [i]
+        
+        return madeProgress;
+    }
+    
+    /* Definition Horizontal Marker - In a quadrant, there exist only one row 
+     * that contains the marker number(s). Inspect each quadrant for horizontal
+     * markers. If a number with horizontal is found, eliminate markers from 
+     * horizontal line excluding the markers in the inspected quadrant.
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise.
+     * Note: There is a redundancy for isolated markers elimination. 
+     */
+    $.horizontalMarkerSlice = function(markerBoard)
+    {
+        var madeProgress = false;
+            
+        //Iterate each quadrant
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {            
+            //iterate each number to check if there exist a single horizontal marker 
+            for(var number = 1; number < 10; number++)
+            {
+                var rowOneHorizontal = false;
+                var rowTwoHorizontal = false;
+                var rowThreeHorizontal = false;
+                var rowMarkerEliminator = -1; //fixed row constant to eliminate markers from
+                
+                //Iterate each coordinate in quadrant row by row
+                for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+                {
+                    var x = (j % 3) + (3 * (i % 3)); 
+                    var y = Math.floor(j / 3) + (3 * Math.floor(i / 3));
+                    var row = Math.floor(j / 3);
+
+                    //iterate marker list for a coordinate
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[x][y][k];
+                        
+                        //Row One inspection
+                        if(row == 0)
+                        {
+                            if(markerValue == number)
+                            {
+                                rowOneHorizontal = true;
+                                rowMarkerEliminator = y;
+                            }
+                        }
+
+                        //Row Two Inspection
+                        else if(row == 1)
+                        {
+                            if(markerValue == number)
+                            {
+                                rowTwoHorizontal = true;
+                                rowMarkerEliminator = y;
+                            }
+                        }
+
+                        //Row Three Inspection
+                        else
+                        {
+                            if(markerValue == number)
+                            {
+                                rowThreeHorizontal = true;
+                                rowMarkerEliminator = y;
+                            }
+
+                        }  
+
+                    }
+                }//end for loop [j]
+
+                //Determine if there exist a single row with horizontal markers
+                if((rowOneHorizontal? 1 : 0) + (rowTwoHorizontal? 1 : 0) + (rowThreeHorizontal? 1 : 0) == 1)
+                {
+                    madeProgress = true;
+                    var quadrantAdjustment = 3 * (i % 3);
+                    var skipXCoordinateOne = 0 + quadrantAdjustment;
+                    var skipXCoordinateTwo = 1 + quadrantAdjustment;
+                    var skipXCoordinateThree = 2 + quadrantAdjustment;
+                    
+                    //eliminate markers for inspected number in row except for the markers in quadrant that is currently being inspected
+                    for(var z = 0; z < SUDOKU_BOARD_LENGTH; z++)
+                    {
+                        //skip markers in quadrant that is currently being inspected
+                         if(z == skipXCoordinateOne || z == skipXCoordinateTwo || z == skipXCoordinateThree)
+                             continue;
+                        
+                         markerBoard[z][rowMarkerEliminator][number - 1] = 0;      
+                    }
+                }
+            }//end for loop [number]
+        }//end for loop [i]
+        
+        return madeProgress;
+    }
+    
     /* Inspect each quadrant for isolated markers and place number on board.
      * @param - puzzleBoard [2D Array] - placement of numbers may happen
      * @param - markerBoard [3D Array] - contains marker list for each coordinate
