@@ -128,6 +128,8 @@ $(document).ready(function()
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
             madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for coordinate with exact markers 
+            madeProgress = $.hiddenCloneMarkerCleanerColumn(markerBoard); //Inspect each column for coordinate with exact markers
+            madeProgress = $.hiddenCloneMarkerCleanerRow(markerBoard); //Inspect each row for coordinate with exact markers 
             madeProgress = $.oneMarkerLeftPlacement(puzzleBoard, markerBoard);//Place number for coordinates with one marker left
             madeProgress = $.lastNumberMarkerInQuadrantPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in quadrant             
             madeProgress = $.lastNumberMarkerInColumnPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in column
@@ -137,7 +139,7 @@ $(document).ready(function()
                 break;
         }
 
-        $.printMarkerBoardByRow(markerBoard);
+        $.printMarkerBoardByQuadrant(markerBoard);
         $.printPuzzleBoard(puzzleBoard); 
         
     });
@@ -145,6 +147,269 @@ $(document).ready(function()
 
 (function($)
 {
+    /*
+     * Inspect each row for coordinates with exact markers.
+     * Only numbers with exactly two markers left will be examined.
+     * E.g. If 1 and 9 are only found in these coordinates, the other
+     * markers can be eliminated.
+     * 1 2 3 0 0 0 0 0 9 [hidden clone 2 and 3 can be removed]
+     * 1 0 0 0 0 0 0 0 9
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise  
+     */
+    $.hiddenCloneMarkerCleanerRow = function(markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker2 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            var numbersToInspect = new Array(); //list may contain possible clones
+                    
+            //iterate each coordinate in row
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[j][i][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     
+                     if(markerValue != 0)
+                     {
+                        //keep track of the coordinate position
+                        if(markerCoordinateTracker[markerValue].x == -1 && markerCoordinateTracker[markerValue].y == -1 )
+                        {
+                           markerCoordinateTracker[markerValue].x = j;
+                           markerCoordinateTracker[markerValue].y = i;
+                        }
+
+                        //1st coordinate has been tracked; keep track of second coordinate
+                        else if(markerCoordinateTracker2[markerValue].x == -1 && markerCoordinateTracker2[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker2[markerValue].x = j;
+                           markerCoordinateTracker2[markerValue].y = i;
+                        }
+                     }
+                }
+            }
+            
+            //Inspect marker counter and add possible clones to list
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //add numbers that have exaclty two markers left
+                if(markerCounter[z] == 2)
+                {
+                    numbersToInspect.push(z); //add possible clones
+                }
+            }  
+            
+            var numbersToInspectLength = numbersToInspect.length;
+            
+            //Only look at list if it has more than one item
+            if(numbersToInspectLength > 1)
+            {
+                //iterate entire list
+                for(var n1 = 0; n1 < numbersToInspectLength; n1++)
+                {
+                    var mainItem = numbersToInspect[n1];
+                    
+                    //iterate subset of list
+                    for(var n2 = n1 + 1; n2 < numbersToInspectLength; n2++)
+                    {
+                        var subsetItem = numbersToInspect[n2];
+                        var xm1 = markerCoordinateTracker[mainItem].x;
+                        var xs1 = markerCoordinateTracker[subsetItem].x;
+                        var ym1 = markerCoordinateTracker[mainItem].y;
+                        var ys1 = markerCoordinateTracker[subsetItem].y ;
+                        var xm2 = markerCoordinateTracker2[mainItem].x;
+                        var xs2 = markerCoordinateTracker2[subsetItem].x;
+                        var ym2 = markerCoordinateTracker2[mainItem].y;
+                        var ys2 = markerCoordinateTracker2[subsetItem].y ;
+                        
+                        //compare coordinates of markers; a clone is found if conditions are satisfied 
+                        if(xm1 == xs1 && ym1 == ys1 && xm2 == xs2 && ym2 == ys2)
+                        {
+                            //eliminate non-clone markers from coordinates
+                            for(var it = 0; it < SUDOKU_BOARD_LENGTH; it++)
+                            { 
+                                var markerNumCompare = markerBoard[xm1][ym1][it];
+                                var markerNumCompare2 = markerBoard[xm2][ym2][it];
+                                
+                                if(markerNumCompare != mainItem && markerNumCompare != subsetItem)
+                                {
+                                    if( markerBoard[xm1][ym1][it] != 0)
+                                    {
+                                        markerBoard[xm1][ym1][it]= 0;
+                                        madeProgress = true;
+                                    }
+                                        
+                                }
+                                   
+                                if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem)
+                                {
+                                    if(markerBoard[xm2][ym2][it] != 0)
+                                    {
+                                        markerBoard[xm2][ym2][it]= 0;
+                                        madeProgress = true;
+                                    }
+                                }
+                            } //end for loop [it]
+                        }    
+                    }//end for loop [n2]
+                }//end for loop [n1]
+            }
+            
+            //reset coordinate tracker and marker counter
+            for(var r = 0; r < markerCounterLength; r++)
+            {
+                markerCounter[r] = 0;
+                markerCoordinateTracker[r].x = -1;
+                markerCoordinateTracker[r].y = -1;
+                markerCoordinateTracker2[r].x = -1;
+                markerCoordinateTracker2[r].y = -1;  
+            }
+        }
+        
+        return madeProgress; 
+    }
+    
+     /*
+     * Inspect each column for coordinates with exact markers.
+     * Only numbers with exactly two markers left will be examined.
+     * E.g. If 1 and 9 are only found in these coordinates, the other
+     * markers can be eliminated.
+     * 1 2 3 0 0 0 0 0 9 [hidden clone 2 and 3 can be removed]
+     * 1 0 0 0 0 0 0 0 9
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise  
+     */
+    $.hiddenCloneMarkerCleanerColumn = function(markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker2 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            var numbersToInspect = new Array(); //list may contain possible clones
+                    
+            //iterate each coordinate in column
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[i][j][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     
+                     if(markerValue != 0)
+                     {
+                        //keep track of the coordinate position
+                        if(markerCoordinateTracker[markerValue].x == -1 && markerCoordinateTracker[markerValue].y == -1 )
+                        {
+                           markerCoordinateTracker[markerValue].x = i;
+                           markerCoordinateTracker[markerValue].y = j;
+                        }
+
+                        //1st coordinate has been tracked; keep track of second coordinate
+                        else if(markerCoordinateTracker2[markerValue].x == -1 && markerCoordinateTracker2[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker2[markerValue].x = i;
+                           markerCoordinateTracker2[markerValue].y = j;
+                        }
+                     }
+                }
+            }
+            
+            //Inspect marker counter and add possible clones to list
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //add numbers that have exaclty two markers left
+                if(markerCounter[z] == 2)
+                {
+                    numbersToInspect.push(z); //add possible clones
+                }
+            }  
+            
+            var numbersToInspectLength = numbersToInspect.length;
+            
+            //Only look at list if it has more than one item
+            if(numbersToInspectLength > 1)
+            {
+                //iterate entire list
+                for(var n1 = 0; n1 < numbersToInspectLength; n1++)
+                {
+                    var mainItem = numbersToInspect[n1];
+                    
+                    //iterate subset of list
+                    for(var n2 = n1 + 1; n2 < numbersToInspectLength; n2++)
+                    {
+                        var subsetItem = numbersToInspect[n2];
+                        var xm1 = markerCoordinateTracker[mainItem].x;
+                        var xs1 = markerCoordinateTracker[subsetItem].x;
+                        var ym1 = markerCoordinateTracker[mainItem].y;
+                        var ys1 = markerCoordinateTracker[subsetItem].y ;
+                        var xm2 = markerCoordinateTracker2[mainItem].x;
+                        var xs2 = markerCoordinateTracker2[subsetItem].x;
+                        var ym2 = markerCoordinateTracker2[mainItem].y;
+                        var ys2 = markerCoordinateTracker2[subsetItem].y ;
+                        
+                        //compare coordinates of markers; a clone is found if conditions are satisfied 
+                        if(xm1 == xs1 && ym1 == ys1 && xm2 == xs2 && ym2 == ys2)
+                        {
+                            //eliminate non-clone markers from coordinates
+                            for(var it = 0; it < SUDOKU_BOARD_LENGTH; it++)
+                            { 
+                                var markerNumCompare = markerBoard[xm1][ym1][it];
+                                var markerNumCompare2 = markerBoard[xm2][ym2][it];
+                                
+                                if(markerNumCompare != mainItem && markerNumCompare != subsetItem)
+                                {
+                                    if( markerBoard[xm1][ym1][it] != 0)
+                                    {
+                                        markerBoard[xm1][ym1][it]= 0;
+                                        madeProgress = true;
+                                    }
+                                        
+                                }
+                                   
+                                
+                                if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem)
+                                {
+                                    if(markerBoard[xm2][ym2][it] != 0)
+                                    {
+                                        markerBoard[xm2][ym2][it]= 0;
+                                        madeProgress = true;
+                                    }
+                                }
+                            } //end for loop [it]
+                        }    
+                    }//end for loop [n2]
+                }//end for loop [n1]
+            }
+            
+            //reset coordinate tracker and marker counter
+            for(var r = 0; r < markerCounterLength; r++)
+            {
+                markerCounter[r] = 0;
+                markerCoordinateTracker[r].x = -1;
+                markerCoordinateTracker[r].y = -1;
+                markerCoordinateTracker2[r].x = -1;
+                markerCoordinateTracker2[r].y = -1;  
+            }
+        }
+        
+        return madeProgress; 
+    }
+    
     /*
      * Inspect each quadrant for coordinates with exact markers.
      * Only numbers with exactly two markers left will be examined.
