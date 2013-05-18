@@ -127,9 +127,13 @@ $(document).ready(function()
             }
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
-            madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for coordinate with exact markers 
-            madeProgress = $.hiddenCloneMarkerCleanerColumn(markerBoard); //Inspect each column for coordinate with exact markers
-            madeProgress = $.hiddenCloneMarkerCleanerRow(markerBoard); //Inspect each row for coordinate with exact markers 
+            madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find coordinates with two remaining exact markers in quadrant
+            madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for pair of coordinate with exact markers 
+            madeProgress = $.hiddenCloneMarkerCleanerColumn(markerBoard); //Inspect each column for pair of coordinates with exact markers
+            madeProgress = $.hiddenCloneMarkerCleanerRow(markerBoard); //Inspect each row for pair coordinates with exact markers 
+            madeProgress = $.hiddenTripleMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for triple coordinates with exact markers
+            madeProgress = $.hiddenTripleMarkerCleanerColumn(markerBoard); //Inspect each column for triple coordinates with exact markers 
+            madeProgress = $.hiddenTripleMarkerCleanerRow(markerBoard); //Inspect each row for triple coordinates with exact markers 
             madeProgress = $.oneMarkerLeftPlacement(puzzleBoard, markerBoard);//Place number for coordinates with one marker left
             madeProgress = $.lastNumberMarkerInQuadrantPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in quadrant             
             madeProgress = $.lastNumberMarkerInColumnPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in column
@@ -140,19 +144,602 @@ $(document).ready(function()
         }
 
         $.printMarkerBoardByQuadrant(markerBoard);
-        $.printPuzzleBoard(puzzleBoard); 
-        
+        $.printPuzzleBoard(puzzleBoard);
+        console.log($.validateSudokuConstraint(puzzleBoard));
     });
 });
 
 (function($)
 {
+    /* Find pair of coordinates with only two remaining markers, which are identical.
+     * E.g.
+     * 1 0 0 0 0 0 0 0 9
+     * 1 0 0 0 0 0 0 0 9
+     * Eliminate 1 and 9 markers from the other coordinates in quadrant. 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise
+     */
+    $.pairMarkerSweeperQuadrant = function(markerBoard)
+    {
+        var madeProgress = false;
+        
+        //Iterate each quadrant
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate two coordinates in quadrant at a time
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var x = (j % 3) + (3 * (i % 3)); 
+                var y = Math.floor(j / 3) + (3 * Math.floor(i / 3));
+                
+                //Iterate subset; comparing current coordinate to subset coordinate 
+                for(var j2 = j + 1; j2 < SUDOKU_BOARD_LENGTH; j2++)
+                {
+                    var x2 = (j2 % 3) + (3 * (i % 3)); 
+                    var y2 = Math.floor(j2 / 3) + (3 * Math.floor(i / 3));
+                    var matchCounter = 0;
+                    var otherCounter = 0;
+                    var pairNumber1 = -1;
+                    var pairNumber2 = -1;
+                    
+                    //skip iteration if markers list does not have exactly two markers
+                    if(!$.hasTwoMarkersLeft(markerBoard[x][y]) || !$.hasTwoMarkersLeft(markerBoard[x2][y2]))
+                        continue;
+                        
+                    //Iterate pair coordinates' marker list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerVal = markerBoard[x][y][k];
+                        var markerVal2 = markerBoard[x2][y2][k];
+                        
+                        if(markerVal != 0 && markerVal2 != 0 && markerVal == markerVal2)
+                        {
+                            matchCounter++;
+                            if(pairNumber1 == -1)
+                               pairNumber1 = markerVal;
+
+                            else if(pairNumber2 == -1)
+                                pairNumber2 = markerVal2;
+                        }
+                    }
+                    
+                    //Pair coordinates is found; Eliminate pair number markers from the other coordinates
+                    if(matchCounter == 2 && otherCounter == 0)
+                    {
+                        for(var jA = 0; jA < SUDOKU_BOARD_LENGTH; jA++)
+                        {
+                            var xA = (jA % 3) + (3 * (i % 3)); 
+                            var yA = Math.floor(jA / 3) + (3 * Math.floor(i / 3));
+
+                            //ignore pair coordinates
+                            if((xA == x && yA == y) || (xA == x2 && yA == y2))
+                                continue;
+
+                            for(var kA = 0; kA < SUDOKU_BOARD_LENGTH; kA++)
+                            {
+                                //eliminate pair numbers from the other coordinates
+                                var markerValue = markerBoard[xA][yA][kA];
+                                if(markerValue == pairNumber1 || markerValue == pairNumber2)
+                                {
+                                     markerBoard[xA][yA][kA] = 0;
+                                     madeProgress = true;   
+                                }   
+                            }
+                        }
+                    }
+                }//end for loop [j2]
+            }//end for loop [j]
+        }//end for loop [i]  
+        return madeProgress;
+    }
+    
     /*
-     * Inspect each row for coordinates with exact markers.
+     * Inspect each row for a triplet of coordinates with exact markers.
      * Only numbers with exactly two markers left will be examined.
+     * E.g. 5 can be removed since 2,8,9 must occupy these spots.
+     * 0 2 0 0 5 0 0 8 9 
+     * 0 2 0 0 0 0 0 8 9 
+     * 0 2 0 0 0 0 0 8 9 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise  
+     */
+    $.hiddenTripleMarkerCleanerRow = function(markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker2 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker3 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            var numbersToInspect = new Array(); //list may contain possible clones
+                    
+            //iterate each coordinate in row
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[j][i][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     
+                     if(markerValue != 0)
+                     {
+                        //keep track of the coordinate position
+                        if(markerCoordinateTracker[markerValue].x == -1 && markerCoordinateTracker[markerValue].y == -1 )
+                        {
+                           markerCoordinateTracker[markerValue].x = j;
+                           markerCoordinateTracker[markerValue].y = i;
+                        }
+
+                        //1st coordinate has been tracked; keep track of second coordinate
+                        else if(markerCoordinateTracker2[markerValue].x == -1 && markerCoordinateTracker2[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker2[markerValue].x = j;
+                           markerCoordinateTracker2[markerValue].y = i;
+                        }
+                        
+                        //Keep track of third coordinate position
+                        else if(markerCoordinateTracker3[markerValue].x == -1 && markerCoordinateTracker3[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker3[markerValue].x = j;
+                           markerCoordinateTracker3[markerValue].y = i;
+                        }
+                     }
+                }
+            }
+            
+            //Inspect marker counter and add possible triples to list
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //add numbers that have exaclty three markers left
+                if(markerCounter[z] == 3)
+                    numbersToInspect.push(z); //add possible triples
+            }  
+            
+            var numbersToInspectLength = numbersToInspect.length;
+            
+            //Only look at list if it has more than two item
+            if(numbersToInspectLength > 2)
+            {
+                //iterate entire list
+                for(var n1 = 0; n1 < numbersToInspectLength; n1++)
+                {
+                    var mainItem = numbersToInspect[n1];
+                    
+                    //iterate subset of list
+                    for(var n2 = n1 + 1; n2 < numbersToInspectLength; n2++)
+                    {
+                        var subsetItem = numbersToInspect[n2];
+                        
+                        //iterate subset of a subset
+                        for(var n3 = n2 + 1; n3 < numbersToInspectLength; n3++)
+                        {
+                            var thirdItem = numbersToInspect[n3];
+                            var xm1 = markerCoordinateTracker[mainItem].x;
+                            var xm2 = markerCoordinateTracker2[mainItem].x;
+                            var xm3 = markerCoordinateTracker3[mainItem].x;
+                            var ym1 = markerCoordinateTracker[mainItem].y;
+                            var ym2 = markerCoordinateTracker2[mainItem].y;
+                            var ym3 = markerCoordinateTracker3[mainItem].y;
+                           
+                            var xs1 = markerCoordinateTracker[subsetItem].x;
+                            var xs2 = markerCoordinateTracker2[subsetItem].x;
+                            var xs3 = markerCoordinateTracker3[subsetItem].x; 
+                            var ys1 = markerCoordinateTracker[subsetItem].y;
+                            var ys2 = markerCoordinateTracker2[subsetItem].y;
+                            var ys3 = markerCoordinateTracker3[subsetItem].y;
+                           
+                            var xss1 = markerCoordinateTracker[thirdItem].x;
+                            var xss2 = markerCoordinateTracker2[thirdItem].x;
+                            var xss3 = markerCoordinateTracker3[thirdItem].x;
+                            var yss1 = markerCoordinateTracker[thirdItem].y;
+                            var yss2 = markerCoordinateTracker2[thirdItem].y;
+                            var yss3 = markerCoordinateTracker3[thirdItem].y;
+                            
+                            //compare coordinates of markers; a triple is found if conditions are satisfied 
+                            if((xm1 == xs1 && xs1 == xss1) && (xm2 == xs2 && xs2 == xss2) && (xm3 == xs3 && xs3 == xss3)
+                               &&(ym1 == ys1 && ys1 == yss1) && (ym2 == ys2 && ys2 == yss2) && (ym3 == ys3 && ys3 == yss3))
+                            {
+                                //eliminate non-triple markers from coordinates
+                                for(var it = 0; it < SUDOKU_BOARD_LENGTH; it++)
+                                { 
+                                    var markerNumCompare = markerBoard[xm1][ym1][it];
+                                    var markerNumCompare2 = markerBoard[xm2][ym2][it];
+                                    var markerNumCompare3 = markerBoard[xm3][ym3][it];
+                                        
+                                    if(markerNumCompare != mainItem && markerNumCompare != subsetItem && markerNumCompare != thirdItem)
+                                    {
+                                        if( markerBoard[xm1][ym1][it] != 0)
+                                        {
+                                            markerBoard[xm1][ym1][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+
+                                    if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem && markerNumCompare2 != thirdItem)
+                                    {
+                                        if(markerBoard[xm2][ym2][it] != 0)
+                                        {
+                                            markerBoard[xm2][ym2][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+                                    
+                                    if(markerNumCompare3 != mainItem && markerNumCompare3 != subsetItem && markerNumCompare3 != thirdItem)
+                                    {
+                                        if(markerBoard[xm3][ym3][it] != 0)
+                                        {
+                                            markerBoard[xm3][ym3][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+                                } //end for loop [it]
+                            }
+                        }//end for loop[n3]    
+                    }//end for loop [n2]
+                }//end for loop [n1]
+            }
+            
+            //reset coordinate tracker and marker counter
+            for(var r = 0; r < markerCounterLength; r++)
+            {
+                markerCounter[r] = 0;
+                markerCoordinateTracker[r].x = -1;
+                markerCoordinateTracker[r].y = -1;
+                markerCoordinateTracker2[r].x = -1;
+                markerCoordinateTracker2[r].y = -1; 
+                markerCoordinateTracker3[r].x = -1;
+                markerCoordinateTracker3[r].y = -1;  
+            }
+        }
+        
+        return madeProgress; 
+    }
+    
+    /*
+     * Inspect each column for a triplet of coordinates with hidden exact markers.
+     * E.g. 5 can be removed since 2,8,9 must occupy these spots.
+     * 0 2 0 0 5 0 0 8 9 
+     * 0 2 0 0 0 0 0 8 9 
+     * 0 2 0 0 0 0 0 8 9 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise  
+     */
+    $.hiddenTripleMarkerCleanerColumn = function(markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker2 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker3 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            var numbersToInspect = new Array(); //list may contain possible clones
+                    
+            //iterate each coordinate in column
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[i][j][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     
+                     if(markerValue != 0)
+                     {
+                        //keep track of the coordinate position
+                        if(markerCoordinateTracker[markerValue].x == -1 && markerCoordinateTracker[markerValue].y == -1 )
+                        {
+                           markerCoordinateTracker[markerValue].x = i;
+                           markerCoordinateTracker[markerValue].y = j;
+                        }
+
+                        //1st coordinate has been tracked; keep track of second coordinate
+                        else if(markerCoordinateTracker2[markerValue].x == -1 && markerCoordinateTracker2[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker2[markerValue].x = i;
+                           markerCoordinateTracker2[markerValue].y = j;
+                        }
+                        
+                        //Keep track of third coordinate position
+                        else if(markerCoordinateTracker3[markerValue].x == -1 && markerCoordinateTracker3[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker3[markerValue].x = i;
+                           markerCoordinateTracker3[markerValue].y = j;
+                        }
+                     }
+                }
+            }
+            
+            //Inspect marker counter and add possible triples to list
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //add numbers that have exaclty three markers left
+                if(markerCounter[z] == 3)
+                    numbersToInspect.push(z); //add possible triples
+            }  
+            
+            var numbersToInspectLength = numbersToInspect.length;
+            
+            //Only look at list if it has more than two item
+            if(numbersToInspectLength > 2)
+            {
+                //iterate entire list
+                for(var n1 = 0; n1 < numbersToInspectLength; n1++)
+                {
+                    var mainItem = numbersToInspect[n1];
+                    
+                    //iterate subset of list
+                    for(var n2 = n1 + 1; n2 < numbersToInspectLength; n2++)
+                    {
+                        var subsetItem = numbersToInspect[n2];
+                        
+                        //iterate subset of a subset
+                        for(var n3 = n2 + 1; n3 < numbersToInspectLength; n3++)
+                        {
+                            var thirdItem = numbersToInspect[n3];
+                            var xm1 = markerCoordinateTracker[mainItem].x;
+                            var xm2 = markerCoordinateTracker2[mainItem].x;
+                            var xm3 = markerCoordinateTracker3[mainItem].x;
+                            var ym1 = markerCoordinateTracker[mainItem].y;
+                            var ym2 = markerCoordinateTracker2[mainItem].y;
+                            var ym3 = markerCoordinateTracker3[mainItem].y;
+                           
+                            var xs1 = markerCoordinateTracker[subsetItem].x;
+                            var xs2 = markerCoordinateTracker2[subsetItem].x;
+                            var xs3 = markerCoordinateTracker3[subsetItem].x; 
+                            var ys1 = markerCoordinateTracker[subsetItem].y;
+                            var ys2 = markerCoordinateTracker2[subsetItem].y;
+                            var ys3 = markerCoordinateTracker3[subsetItem].y;
+                           
+                            var xss1 = markerCoordinateTracker[thirdItem].x;
+                            var xss2 = markerCoordinateTracker2[thirdItem].x;
+                            var xss3 = markerCoordinateTracker3[thirdItem].x;
+                            var yss1 = markerCoordinateTracker[thirdItem].y;
+                            var yss2 = markerCoordinateTracker2[thirdItem].y;
+                            var yss3 = markerCoordinateTracker3[thirdItem].y;
+                            
+                            //compare coordinates of markers; a triple is found if conditions are satisfied 
+                            if((xm1 == xs1 && xs1 == xss1) && (xm2 == xs2 && xs2 == xss2) && (xm3 == xs3 && xs3 == xss3)
+                               &&(ym1 == ys1 && ys1 == yss1) && (ym2 == ys2 && ys2 == yss2) && (ym3 == ys3 && ys3 == yss3))
+                            {
+                                //eliminate non-triple markers from coordinates
+                                for(var it = 0; it < SUDOKU_BOARD_LENGTH; it++)
+                                { 
+                                    var markerNumCompare = markerBoard[xm1][ym1][it];
+                                    var markerNumCompare2 = markerBoard[xm2][ym2][it];
+                                    var markerNumCompare3 = markerBoard[xm3][ym3][it];
+                                        
+                                    if(markerNumCompare != mainItem && markerNumCompare != subsetItem && markerNumCompare != thirdItem)
+                                    {
+                                        if( markerBoard[xm1][ym1][it] != 0)
+                                        {
+                                            markerBoard[xm1][ym1][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+
+                                    if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem && markerNumCompare2 != thirdItem)
+                                    {
+                                        if(markerBoard[xm2][ym2][it] != 0)
+                                        {
+                                            markerBoard[xm2][ym2][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+                                    
+                                    if(markerNumCompare3 != mainItem && markerNumCompare3 != subsetItem && markerNumCompare3 != thirdItem)
+                                    {
+                                        if(markerBoard[xm3][ym3][it] != 0)
+                                        {
+                                            markerBoard[xm3][ym3][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+                                } //end for loop [it]
+                            }
+                        }//end for loop[n3]    
+                    }//end for loop [n2]
+                }//end for loop [n1]
+            }
+            
+            //reset coordinate tracker and marker counter
+            for(var r = 0; r < markerCounterLength; r++)
+            {
+                markerCounter[r] = 0;
+                markerCoordinateTracker[r].x = -1;
+                markerCoordinateTracker[r].y = -1;
+                markerCoordinateTracker2[r].x = -1;
+                markerCoordinateTracker2[r].y = -1; 
+                markerCoordinateTracker3[r].x = -1;
+                markerCoordinateTracker3[r].y = -1;  
+            }
+        }
+        
+        return madeProgress; 
+    }
+    
+     /*
+     * Inspect each quadrant for a triplet of coordinates with hidden exact markers.
+     * E.g. 5 can be removed since 2,8,9 must occupy these spots.
+     * 0 2 0 0 5 0 0 8 9 
+     * 0 2 0 0 0 0 0 8 9 
+     * 0 2 0 0 0 0 0 8 9 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise  
+     */
+    $.hiddenTripleMarkerCleanerQuadrant = function(markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker2 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCoordinateTracker3 = [{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1},{'x':-1, 'y':-1}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each quadrant
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            var numbersToInspect = new Array(); //list may contain possible clones
+                    
+            //iterate each coordinate in quadrant
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var x = (j % 3) + (3 * (i % 3)); 
+                var y = Math.floor(j / 3) + (3 * Math.floor(i / 3));
+               
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[x][y][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     
+                     if(markerValue != 0)
+                     {
+                        //keep track of the coordinate position
+                        if(markerCoordinateTracker[markerValue].x == -1 && markerCoordinateTracker[markerValue].y == -1 )
+                        {
+                           markerCoordinateTracker[markerValue].x = x;
+                           markerCoordinateTracker[markerValue].y = y;
+                        }
+
+                        //1st coordinate has been tracked; keep track of second coordinate
+                        else if(markerCoordinateTracker2[markerValue].x == -1 && markerCoordinateTracker2[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker2[markerValue].x = x;
+                           markerCoordinateTracker2[markerValue].y = y;
+                        }
+                        
+                        //Keep track of third coordinate position
+                        else if(markerCoordinateTracker3[markerValue].x == -1 && markerCoordinateTracker3[markerValue].y == -1) 
+                        {
+                           markerCoordinateTracker3[markerValue].x = x;
+                           markerCoordinateTracker3[markerValue].y = y;
+                        }
+                     }
+                }
+            }
+            
+            //Inspect marker counter and add possible triples to list
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //add numbers that have exaclty three markers left
+                if(markerCounter[z] == 3)
+                    numbersToInspect.push(z); //add possible triples
+            }  
+            
+            var numbersToInspectLength = numbersToInspect.length;
+            
+            //Only look at list if it has more than two item
+            if(numbersToInspectLength > 2)
+            {
+                //iterate entire list
+                for(var n1 = 0; n1 < numbersToInspectLength; n1++)
+                {
+                    var mainItem = numbersToInspect[n1];
+                    
+                    //iterate subset of list
+                    for(var n2 = n1 + 1; n2 < numbersToInspectLength; n2++)
+                    {
+                        var subsetItem = numbersToInspect[n2];
+                        
+                        //iterate subset of a subset
+                        for(var n3 = n2 + 1; n3 < numbersToInspectLength; n3++)
+                        {
+                            var thirdItem = numbersToInspect[n3];
+                            var xm1 = markerCoordinateTracker[mainItem].x;
+                            var xm2 = markerCoordinateTracker2[mainItem].x;
+                            var xm3 = markerCoordinateTracker3[mainItem].x;
+                            var ym1 = markerCoordinateTracker[mainItem].y;
+                            var ym2 = markerCoordinateTracker2[mainItem].y;
+                            var ym3 = markerCoordinateTracker3[mainItem].y;
+                           
+                            var xs1 = markerCoordinateTracker[subsetItem].x;
+                            var xs2 = markerCoordinateTracker2[subsetItem].x;
+                            var xs3 = markerCoordinateTracker3[subsetItem].x; 
+                            var ys1 = markerCoordinateTracker[subsetItem].y;
+                            var ys2 = markerCoordinateTracker2[subsetItem].y;
+                            var ys3 = markerCoordinateTracker3[subsetItem].y;
+                           
+                            var xss1 = markerCoordinateTracker[thirdItem].x;
+                            var xss2 = markerCoordinateTracker2[thirdItem].x;
+                            var xss3 = markerCoordinateTracker3[thirdItem].x;
+                            var yss1 = markerCoordinateTracker[thirdItem].y;
+                            var yss2 = markerCoordinateTracker2[thirdItem].y;
+                            var yss3 = markerCoordinateTracker3[thirdItem].y;
+                            
+                            //compare coordinates of markers; a triple is found if conditions are satisfied 
+                            if((xm1 == xs1 && xs1 == xss1) && (xm2 == xs2 && xs2 == xss2) && (xm3 == xs3 && xs3 == xss3)
+                               &&(ym1 == ys1 && ys1 == yss1) && (ym2 == ys2 && ys2 == yss2) && (ym3 == ys3 && ys3 == yss3))
+                            {
+                                //eliminate non-triple markers from coordinates
+                                for(var it = 0; it < SUDOKU_BOARD_LENGTH; it++)
+                                { 
+                                    var markerNumCompare = markerBoard[xm1][ym1][it];
+                                    var markerNumCompare2 = markerBoard[xm2][ym2][it];
+                                    var markerNumCompare3 = markerBoard[xm3][ym3][it];
+                                        
+                                    if(markerNumCompare != mainItem && markerNumCompare != subsetItem && markerNumCompare != thirdItem)
+                                    {
+                                        if( markerBoard[xm1][ym1][it] != 0)
+                                        {
+                                            markerBoard[xm1][ym1][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+
+                                    if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem && markerNumCompare2 != thirdItem)
+                                    {
+                                        if(markerBoard[xm2][ym2][it] != 0)
+                                        {
+                                            markerBoard[xm2][ym2][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+                                    
+                                    if(markerNumCompare3 != mainItem && markerNumCompare3 != subsetItem && markerNumCompare3 != thirdItem)
+                                    {
+                                        if(markerBoard[xm3][ym3][it] != 0)
+                                        {
+                                            markerBoard[xm3][ym3][it]= 0;
+                                            madeProgress = true;
+                                        }
+                                    }
+                                } //end for loop [it]
+                            }
+                        }//end for loop[n3]    
+                    }//end for loop [n2]
+                }//end for loop [n1]
+            }
+            
+            //reset coordinate tracker and marker counter
+            for(var r = 0; r < markerCounterLength; r++)
+            {
+                markerCounter[r] = 0;
+                markerCoordinateTracker[r].x = -1;
+                markerCoordinateTracker[r].y = -1;
+                markerCoordinateTracker2[r].x = -1;
+                markerCoordinateTracker2[r].y = -1; 
+                markerCoordinateTracker3[r].x = -1;
+                markerCoordinateTracker3[r].y = -1;  
+            }
+        }
+        
+        return madeProgress; 
+    }
+
+    /*
+     * Inspect each row for pair of coordinates with exact markers.
      * E.g. If 1 and 9 are only found in these coordinates, the other
      * markers can be eliminated.
-     * 1 2 3 0 0 0 0 0 9 [hidden clone 2 and 3 can be removed]
+     * 1 2 3 0 0 0 0 0 9 [hidden clone] 2 and 3 can be removed
      * 1 0 0 0 0 0 0 0 9
      * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
@@ -203,9 +790,7 @@ $(document).ready(function()
             {
                 //add numbers that have exaclty two markers left
                 if(markerCounter[z] == 2)
-                {
                     numbersToInspect.push(z); //add possible clones
-                }
             }  
             
             var numbersToInspectLength = numbersToInspect.length;
@@ -229,7 +814,7 @@ $(document).ready(function()
                         var xm2 = markerCoordinateTracker2[mainItem].x;
                         var xs2 = markerCoordinateTracker2[subsetItem].x;
                         var ym2 = markerCoordinateTracker2[mainItem].y;
-                        var ys2 = markerCoordinateTracker2[subsetItem].y ;
+                        var ys2 = markerCoordinateTracker2[subsetItem].y;
                         
                         //compare coordinates of markers; a clone is found if conditions are satisfied 
                         if(xm1 == xs1 && ym1 == ys1 && xm2 == xs2 && ym2 == ys2)
@@ -246,8 +831,7 @@ $(document).ready(function()
                                     {
                                         markerBoard[xm1][ym1][it]= 0;
                                         madeProgress = true;
-                                    }
-                                        
+                                    }  
                                 }
                                    
                                 if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem)
@@ -279,11 +863,10 @@ $(document).ready(function()
     }
     
      /*
-     * Inspect each column for coordinates with exact markers.
-     * Only numbers with exactly two markers left will be examined.
+     * Inspect each column for pair of coordinates with hidden exact markers.
      * E.g. If 1 and 9 are only found in these coordinates, the other
      * markers can be eliminated.
-     * 1 2 3 0 0 0 0 0 9 [hidden clone 2 and 3 can be removed]
+     * 1 2 3 0 0 0 0 0 9 [hidden clone] 2 and 3 can be removed.
      * 1 0 0 0 0 0 0 0 9
      * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
@@ -334,9 +917,7 @@ $(document).ready(function()
             {
                 //add numbers that have exaclty two markers left
                 if(markerCounter[z] == 2)
-                {
                     numbersToInspect.push(z); //add possible clones
-                }
             }  
             
             var numbersToInspectLength = numbersToInspect.length;
@@ -381,7 +962,6 @@ $(document).ready(function()
                                         
                                 }
                                    
-                                
                                 if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem)
                                 {
                                     if(markerBoard[xm2][ym2][it] != 0)
@@ -411,11 +991,10 @@ $(document).ready(function()
     }
     
     /*
-     * Inspect each quadrant for coordinates with exact markers.
-     * Only numbers with exactly two markers left will be examined.
+     * Inspect each quadrant for pair of coordinates with hidden exact markers.
      * E.g. If 1 and 9 are only found in these coordinates, the other
      * markers can be eliminated.
-     * 1 2 3 0 0 0 0 0 9 [hidden clone 2 and 3 can be removed]
+     * 1 2 3 0 0 0 0 0 9 [hidden clone] 2 and 3 can be removed.
      * 1 0 0 0 0 0 0 0 9
      * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
@@ -464,17 +1043,12 @@ $(document).ready(function()
                 }
             }
             
-            //console.log("Quadrant: " + i + "\nMarker Counter List: " + markerCounter);
-            
             //Inspect marker counter and add possible clones to list
             for(var z = 0; z < markerCounterLength; z++)
             {
                 //add numbers that have exaclty two markers left
                 if(markerCounter[z] == 2)
-                {
                     numbersToInspect.push(z); //add possible clones
-                    //console.log("Quadrant: " + i + "Marker Number: " + z );
-                }
             }  
             
             var numbersToInspectLength = numbersToInspect.length;
@@ -482,7 +1056,6 @@ $(document).ready(function()
             //Only look at list if it has more than one item
             if(numbersToInspectLength > 1)
             {
-                //console.log("Quadrant: " + i + "\n" + numbersToInspect);
                 //iterate entire list
                 for(var n1 = 0; n1 < numbersToInspectLength; n1++)
                 {
@@ -516,10 +1089,8 @@ $(document).ready(function()
                                     {
                                         markerBoard[xm1][ym1][it]= 0;
                                         madeProgress = true;
-                                    }
-                                        
+                                    }     
                                 }
-                                   
                                 
                                 if(markerNumCompare2 != mainItem && markerNumCompare2 != subsetItem)
                                 {
@@ -1170,6 +1741,25 @@ $(document).ready(function()
         {
             arrayCounter[i] = 0;    
         }
+    }
+    
+    /*
+     * Determine if a coordinate has two remaining markers.
+     * @param - markerList [Array] marker list of a coordinate
+     * @return - true if there is exactly two markers remaining; false otherwise 
+     */
+    $.hasTwoMarkersLeft = function(markerList)
+    {
+        var markerListLength = markerList.length;
+        var counter = 0;
+
+        for(var i = 0; i < markerListLength; i++)
+        {
+            if(markerList[i] != 0)
+               counter++;
+        }
+        
+        return (counter == 2) ? true : false;
     }
     
 })(jQuery);

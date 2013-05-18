@@ -20,6 +20,13 @@
             Row I: <input type="text" id="rowI" maxlength="9" /> <br />
             <input type="button" id="submit" value="Submit"><br />
         </form>
+        
+        
+        <table>
+            <tr>
+                <td> <input type="number" id="00" maxlength="1" /></td>
+            </tr>
+        </table>
 
     </body>
 </html>
