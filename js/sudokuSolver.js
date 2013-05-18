@@ -129,6 +129,8 @@ $(document).ready(function()
             madeProgress = $.verticalMarkerSlice = (markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
             madeProgress = $.oneMarkerLeftPlacement(puzzleBoard, markerBoard);//Place number for coordinates with one marker left
             madeProgress = $.lastNumberMarkerInQuadrantPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in quadrant             
+            madeProgress = $.lastNumberMarkerInColumnPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in column
+            madeProgress = $.lastNumberMarkerInRowPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in row
             
             if(!madeProgress)
                 break;
@@ -330,6 +332,110 @@ $(document).ready(function()
         return madeProgress;
     }
     
+    /* Inspect each row for isolated markers and place number on board.
+     * @param - puzzleBoard [2D Array] - placement of numbers may happen
+     * @param - markerBoard [3D Array] - contains marker list for each coordinate
+     * @return true if a number has been placed; otherwise false 
+     */
+    $.lastNumberMarkerInRowPlacement= function (puzzleBoard, markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //iterate each coordinate in row
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[j][i][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     //keep track of the latest coordinate which incremented the corresponding counter
+                     markerCoordinateTracker[markerValue].x = j;
+                     markerCoordinateTracker[markerValue].y = i;
+                   
+                }
+            }
+            
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //find the isolated marker in row; then place number
+                if(markerCounter[z] == 1)
+                {
+                    var coordX = markerCoordinateTracker[z].x;
+                    var coordY = markerCoordinateTracker[z].y;
+                    puzzleBoard[coordX][coordY] = z; //place number
+                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    madeProgress = true;
+                }
+                
+                //reset coordinate tracker and marker counter
+                markerCounter[z] = 0;
+                markerCoordinateTracker[z].x = 0;
+                markerCoordinateTracker[z].y = 0;       
+            }  
+        }
+        
+        return madeProgress; 
+    }
+    
+    /* Inspect each column for isolated markers and place number on board.
+     * @param - puzzleBoard [2D Array] - placement of numbers may happen
+     * @param - markerBoard [3D Array] - contains marker list for each coordinate
+     * @return true if a number has been placed; otherwise false 
+     */
+    $.lastNumberMarkerInColumnPlacement= function (puzzleBoard, markerBoard)
+    {
+        var madeProgress = false;
+        var markerCounter = [0,0,0,0,0,0,0,0,0,0];
+        var markerCoordinateTracker = [{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0},{'x':0, 'y':0}];
+        var markerCounterLength = markerCounter.length;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //iterate each coordinate in column
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //iterate marker list for coordinate
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                     var markerValue = markerBoard[i][j][k];
+                     markerCounter[markerValue]++; //increment counter for corresponding marker 
+                     //keep track of the latest coordinate which incremented the corresponding counter
+                     markerCoordinateTracker[markerValue].x = i;
+                     markerCoordinateTracker[markerValue].y = j;
+                   
+                }
+            }
+            
+            for(var z = 0; z < markerCounterLength; z++)
+            {
+                //find the isolated marker in column; then place number
+                if(markerCounter[z] == 1)
+                {
+                    var coordX = markerCoordinateTracker[z].x;
+                    var coordY = markerCoordinateTracker[z].y;
+                    puzzleBoard[coordX][coordY] = z; //place number
+                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    madeProgress = true;
+                }
+                
+                //reset coordinate tracker and marker counter
+                markerCounter[z] = 0;
+                markerCoordinateTracker[z].x = 0;
+                markerCoordinateTracker[z].y = 0;       
+            }  
+        }
+        
+        return madeProgress; 
+    }
+    
     /* Inspect each quadrant for isolated markers and place number on board.
      * @param - puzzleBoard [2D Array] - placement of numbers may happen
      * @param - markerBoard [3D Array] - contains marker list for each coordinate
@@ -451,6 +557,27 @@ $(document).ready(function()
         } 
         return false;
     }
+   
+   /*
+    * Print marker list of each coordinate by row
+    * @param - markerBoard [3D Array]
+    */
+    $.printMarkerBoardByRow = function(markerBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var str = "(" + j  + "," + i + ")";
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                    str = str + " " + markerBoard[j][i][k];   
+                }
+                console.log(str);
+            }
+            console.log("\n");
+        }  
+    }
     
     /*
      * Print marker list of each coordinate by column
@@ -462,7 +589,7 @@ $(document).ready(function()
         {
             for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
             {
-                var str = "";
+                var str = "(" + i + "," + j + ")";
                 for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
                 {
                     str = str + " " + markerBoard[i][j][k];   
