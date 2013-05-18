@@ -127,7 +127,7 @@ $(document).ready(function()
             }
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
-            madeProgress = $.hiddenCloneMarkerCleaner(markerBoard); //Inspect each quadrant for coordinate with exact markers 
+            madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for coordinate with exact markers 
             madeProgress = $.oneMarkerLeftPlacement(puzzleBoard, markerBoard);//Place number for coordinates with one marker left
             madeProgress = $.lastNumberMarkerInQuadrantPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in quadrant             
             madeProgress = $.lastNumberMarkerInColumnPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in column
@@ -155,7 +155,7 @@ $(document).ready(function()
      * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenCloneMarkerCleaner = function(markerBoard)
+    $.hiddenCloneMarkerCleanerQuadrant = function(markerBoard)
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
