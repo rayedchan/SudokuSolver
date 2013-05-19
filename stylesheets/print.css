@@ -6,7 +6,7 @@ small, strike, strong, sub, sup, tt, var,
 b, u, i, center,
 dl, dt, dd, ol, ul, li,
 fieldset, form, label, legend,
-table, caption, tbody, tfoot, thead, tr, th, td,
+table, caption, tbody, tfoot, thead, /*tr, th, td,*/
 article, aside, canvas, details, embed, 
 figure, figcaption, footer, header, hgroup, 
 menu, nav, output, ruby, section, summary,
@@ -37,10 +37,10 @@ q:before, q:after {
   content: '';
   content: none;
 }
-table {
+/*table {
   border-collapse: collapse;
   border-spacing: 0;
-}
+}*/
 body {
   font-size: 13px;
   line-height: 1.5; 
@@ -107,7 +107,7 @@ ul, ol, dl {
 
 /* COMMON STYLES */
 
-table {
+/*table {
   width: 100%;
   border: 1px solid #ebebeb;
 }
@@ -126,7 +126,7 @@ form {
   background: #f2f2f2;
   padding: 20px;
   
-}
+}*/
 
 
 /* GENERAL ELEMENT TYPE STYLES */
