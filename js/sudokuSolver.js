@@ -27,30 +27,6 @@ $(document).ready(function()
     //Process form whenever submit button is clicked
     $('#submit').click(function()
     {
-        //Get the values from input fields
-        var rowA = $('#rowA').val();
-        var rowB = $('#rowB').val();
-        var rowC = $('#rowC').val();
-        var rowD = $('#rowD').val();
-        var rowE = $('#rowE').val();
-        var rowF = $('#rowF').val();
-        var rowG = $('#rowG').val();
-        var rowH = $('#rowH').val();
-        var rowI = $('#rowI').val();
-        var givenValues = new Array(rowA,rowB,rowC,rowD,rowE,rowF,rowG,rowH,rowI);
-        //console.log(givenValues);
-        
-        //Validate user input data
-        $.validateData(rowA);
-        $.validateData(rowB);
-        $.validateData(rowC);
-        $.validateData(rowD);
-        $.validateData(rowE);
-        $.validateData(rowF);
-        $.validateData(rowG);
-        $.validateData(rowH);
-        $.validateData(rowI);
-        
         /*
          * Initialize boards
          * puzzleBoard [2D Array 9x9] - The actual sudoku game board.
@@ -74,24 +50,22 @@ $(document).ready(function()
                 markerBoard[i][j] = [1,2,3,4,5,6,7,8,9]; 
             }    
         }
-        //console.log(markerBoard);
 
+        var coordinateCount = 0;
         //Populate puzzle board with given values
         for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)//Iterate each row
         {
-            var str = givenValues[i];
-
             //iterate each char in row
             for(j=0; j< SUDOKU_BOARD_LENGTH; j++)
             {
-                puzzleBoard[j][i] = Number(str.charAt(j)); //add number into puzzle board
+                coordinateCount++;
+                puzzleBoard[j][i] = Number($('#'+coordinateCount).val().charAt(0)); //add number into puzzle board
                 x = (j % 3) + (3 * (i % 3)); 
                 y = Math.floor(j / 3) + (3 * Math.floor(i / 3));
                 quadrantBoard[x][y] = i; //populate quadrant board
             }
         }
-        //console.log(quadrantBoard);
-        //console.log(puzzleBoard);
+        //TODO: Validate user input
         //console.log($.validateSudokuConstraint(puzzleBoard)); //check if current board is valid
         
         var continuousLoop = true;
@@ -146,11 +120,38 @@ $(document).ready(function()
         $.printMarkerBoardByQuadrant(markerBoard);
         $.printPuzzleBoard(puzzleBoard);
         console.log($.validateSudokuConstraint(puzzleBoard));
+        $.displayResults(puzzleBoard);
     });
 });
 
 (function($)
 {
+    /*
+     * Display results on the front-end side.
+     * @param puzzleBoard [2D Array]
+     */
+    $.displayResults = function(puzzleBoard)
+    {
+        var coordinateCount = 0;
+        
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                coordinateCount++;
+                var coordinateCellObj = $('#'+coordinateCount);
+                var frontEndCoordinateValue = coordinateCellObj.val().trim();
+                    
+                if(frontEndCoordinateValue == 0 || frontEndCoordinateValue == "")
+                    coordinateCellObj.addClass("elementAdded");//indicates which coordinate has been added
+                
+                coordinateCellObj.val(puzzleBoard[j][i]); //set value on front-end
+                coordinateCellObj.attr("readonly", "readonly"); //make the input box read-only  
+            }  
+        }
+    }
+
+    
     /* Find pair of coordinates with only two remaining markers, which are identical.
      * E.g.
      * 1 0 0 0 0 0 0 0 9
