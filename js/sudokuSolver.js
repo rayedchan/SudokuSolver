@@ -101,7 +101,8 @@ $(document).ready(function()
             }
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
-            madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(markerBoard,quadrantBoard); //Inspect each row to find horizontal markers isolated in a single quadrant in a region of three quadrant, and eliminate marker numbers in current quadrant except the horizontal markers  
+            madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(markerBoard,quadrantBoard); //Inspect each row to find vertical markers isolated in a single quadrant in a region of three vertical, and eliminate marker numbers in current quadrant except the vertical markers  
+            madeProgress = $.quadrantMarkerReductionByIsolatedHorizontalLine(markerBoard,quadrantBoard); //Inspect each row to find horizontal markers isolated in a single quadrant in a region of three quadrant, and eliminate marker numbers in current quadrant except the horizontal markers 
             madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find pair of coordinates with two remaining markers which are identical in quadrant
             madeProgress = $.pairMarkerSweeperColumn(markerBoard);//Find pair of coordinates with two remaining markers which are identical in column
             madeProgress = $.pairMarkerSweeperRow(markerBoard);//Find pair coordinates with two remaining markers which are identical in row
@@ -130,6 +131,90 @@ $(document).ready(function()
 (function($)
 {
     /*
+     * Inspect each column for horizontal line markers isolated in a single quadrant
+     * in a given region. The three regions are made of the following quadrant: 
+     * region 1 (I, II, III)
+     * region 2 (IV, V, VI)
+     * region 3 (VII, VIII, IX)
+     * Eliminate horizontal marker number from quadrant except for the coordinates 
+     * that form the horizonatal line if a isolated horizontal markers line is found.
+     * @param - markerBoard [3D Array] contains marker list of each coordinate
+     * @param - quadrantBoard [2D Array] contains the quadrant for each coordinate
+     * return - true if any markers are eliminated; false otherwise
+     */
+    $.quadrantMarkerReductionByIsolatedHorizontalLine = function (markerBoard,quadrantBoard)
+    {   
+        var madeProgress = false;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate each sudoku number
+            for(var num = 1; num < 10; num++)
+            {
+                var areHorizontalMarkersInSingleQuadrant = false;
+                var quadrantTracker = -1;
+                
+                //Iterate each coordinate in row
+                for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+                {
+                    var currentQuadrant = quadrantBoard[j][i];
+                    //console.log(currentQuadrant);
+                    
+                    //Iterate coordinate's marker's list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[j][i][k];
+
+                        //Compare current marker value with current number
+                        if(markerValue == num)
+                        {
+                            //First Element 
+                            if(quadrantTracker == -1)
+                            {
+                                quadrantTracker = currentQuadrant;
+                                continue;
+                            }
+                            
+                            //Non-first elements
+                            else if(quadrantTracker != currentQuadrant)
+                            {
+                                areHorizontalMarkersInSingleQuadrant = false;
+                                break;
+                            }
+                            
+                            areHorizontalMarkersInSingleQuadrant = true;
+                        }
+                    }//end for loop [k]
+                }//end for loop [j]
+                
+                if(areHorizontalMarkersInSingleQuadrant)
+                {
+                    //Iterate coordinate specific quadrant 
+                    for(var quadIt = 0; quadIt < SUDOKU_BOARD_LENGTH; quadIt++)
+                    {
+                         var x = (quadIt % 3) + (3 * (quadrantTracker % 3)); 
+                         var y = Math.floor(quadIt / 3) + (3 * Math.floor(quadrantTracker / 3));
+                         //console.log("(" + x + ", " + y + ")");
+                         
+                         //skip horizontal markers (current row)
+                         if(y == i)
+                             continue;
+                         
+                         //Eliminate horizontal marker number from the other coordinates
+                         if(markerBoard[x][y][num - 1] != 0)
+                         {
+                              markerBoard[x][y][num - 1] = 0;
+                              madeProgress = true;
+                         }
+                    }//end for loop [quadIt] 
+                } 
+            }//end for loop [num]
+        }
+        return madeProgress;
+    }
+    
+    /*
      * Inspect each column for vertical line markers isolated in a single quadrant
      * in a given region. The three regions are made of the following quadrant: 
      * region 1 (I, IV, VII)
@@ -157,11 +242,13 @@ $(document).ready(function()
                 //Iterate each coordinate in column
                 for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
                 {
+                    var currentQuadrant = quadrantBoard[i][j];
+                    
                     //Iterate coordinate's marker's list
                     for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
                     {
                         var markerValue = markerBoard[i][j][k];
-                        var currentQuadrant = quadrantBoard[i][j];
+
                         
                         //Compare current marker value with current number
                         if(markerValue == num)
@@ -197,7 +284,7 @@ $(document).ready(function()
                          if(x == i)
                              continue;
                          
-                         //Eliminate vertical marker numbers from the other coordinates
+                         //Eliminate vertical marker number from the other coordinates
                          if(markerBoard[x][y][num - 1] != 0)
                          {
                               markerBoard[x][y][num - 1] = 0;
