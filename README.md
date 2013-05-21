@@ -2,7 +2,8 @@ SudokuSolver
 ============
 9x9 Sudoku Board  
 This program attempts to solve the puzzle using human-logic.  
-  
+Demo: http://rayedchan.github.io/SudokuSolver/
+
 Background  
 Sudoku Coordinate System 9x9 Board  
   
@@ -21,5 +22,8 @@ Sudoku Coordinate System 9x9 Board
   
    [Left - Right] = x coordinate  rows  
    [Up - Down] = y coordinate columns  
-   The sudoku board is made of 81 coordinate points.   
+   The sudoku board is made of 81 coordinate points.  
+   
+   
+Will update soon ...
  
