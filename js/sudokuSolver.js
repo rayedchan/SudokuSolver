@@ -101,7 +101,10 @@ $(document).ready(function()
             }
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
-            madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find coordinates with two remaining exact markers in quadrant
+            madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(markerBoard,quadrantBoard); //Inspect each row to find horizontal markers isolated in a single quadrant in a region of three quadrant, and eliminate marker numbers in current quadrant except the horizontal markers  
+            madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find pair of coordinates with two remaining markers which are identical in quadrant
+            madeProgress = $.pairMarkerSweeperColumn(markerBoard);//Find pair of coordinates with two remaining markers which are identical in column
+            madeProgress = $.pairMarkerSweeperRow(markerBoard);//Find pair coordinates with two remaining markers which are identical in row
             madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for pair of coordinate with exact markers 
             madeProgress = $.hiddenCloneMarkerCleanerColumn(markerBoard); //Inspect each column for pair of coordinates with exact markers
             madeProgress = $.hiddenCloneMarkerCleanerRow(markerBoard); //Inspect each row for pair coordinates with exact markers 
@@ -127,8 +130,90 @@ $(document).ready(function()
 (function($)
 {
     /*
+     * Inspect each column for vertical line markers isolated in a single quadrant
+     * in a given region. The three regions are made of the following quadrant: 
+     * region 1 (I, IV, VII)
+     * region 2 (II, V, VIII)
+     * region 3 (III, VI, IX)
+     * Eliminate vertical marker number from quadrant except for the coordinates 
+     * that form the vertical line if a isolated vertical markers line is found.
+     * @param - markerBoard [3D Array] contains marker list of each coordinate
+     * @param - quadrantBoard [2D Array] contains the quadrant for each coordinate
+     * return - true if any markers are eliminated; false otherwise
+     */
+    $.quadrantMarkerReductionByIsolatedVerticalLine = function (markerBoard,quadrantBoard)
+    {   
+        var madeProgress = false;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate each sudoku number
+            for(var num = 1; num < 10; num++)
+            {
+                var areVerticalMarkersInSingleQuadrant = false;
+                var quadrantTracker = -1;
+                
+                //Iterate each coordinate in column
+                for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+                {
+                    //Iterate coordinate's marker's list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[i][j][k];
+                        var currentQuadrant = quadrantBoard[i][j];
+                        
+                        //Compare current marker value with current number
+                        if(markerValue == num)
+                        {
+                            //First Element 
+                            if(quadrantTracker == -1)
+                            {
+                                quadrantTracker = currentQuadrant;
+                                continue;
+                            }
+                            
+                            //Non-first elements
+                            else if(quadrantTracker != currentQuadrant)
+                            {
+                                areVerticalMarkersInSingleQuadrant = false;
+                                break;
+                            }
+                            
+                            areVerticalMarkersInSingleQuadrant = true;
+                        }
+                    }//end for loop [k]
+                }//end for loop [j]
+                
+                if(areVerticalMarkersInSingleQuadrant)
+                {
+                    //Iterate coordinate specific quadrant 
+                    for(var quadIt = 0; quadIt < SUDOKU_BOARD_LENGTH; quadIt++)
+                    {
+                         var x = (quadIt % 3) + (3 * (quadrantTracker % 3)); 
+                         var y = Math.floor(quadIt / 3) + (3 * Math.floor(quadrantTracker / 3));
+                         
+                         //skip vertical markers (current column)
+                         if(x == i)
+                             continue;
+                         
+                         //Eliminate vertical marker numbers from the other coordinates
+                         if(markerBoard[x][y][num - 1] != 0)
+                         {
+                              markerBoard[x][y][num - 1] = 0;
+                              madeProgress = true;
+                         }
+                    }//end for loop [quadIt] 
+                } 
+            }//end for loop [num]
+        }
+        
+        return madeProgress;
+    }
+    
+    /*
      * Display results on the front-end side.
-     * @param puzzleBoard [2D Array]
+     * @param - puzzleBoard [2D Array]
      */
     $.displayResults = function(puzzleBoard)
     {
@@ -150,7 +235,154 @@ $(document).ready(function()
             }  
         }
     }
+    
+     /* Find pair of coordinates with only two remaining markers, which are identical.
+     * E.g.
+     * 1 0 0 0 0 0 0 0 9
+     * 1 0 0 0 0 0 0 0 9
+     * Eliminate 1 and 9 markers from the other coordinates in row. 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise
+     */
+    $.pairMarkerSweeperRow = function(markerBoard)
+    {
+        var madeProgress = false;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate two coordinates in row at a time
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //Iterate subset; comparing current coordinate to subset coordinate 
+                for(var j2 = j + 1; j2 < SUDOKU_BOARD_LENGTH; j2++)
+                {
+                    var matchCounter = 0;
+                    var otherCounter = 0;
+                    var pairNumber1 = -1;
+                    var pairNumber2 = -1;
+                    
+                    //skip iteration if markers list does not have exactly two markers
+                    if(!$.hasTwoMarkersLeft(markerBoard[j][i]) || !$.hasTwoMarkersLeft(markerBoard[j2][i]))
+                        continue;
+                        
+                    //Iterate pair coordinates' marker list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerVal = markerBoard[j][i][k];
+                        var markerVal2 = markerBoard[j2][i][k];
+                        
+                        if(markerVal != 0 && markerVal2 != 0 && markerVal == markerVal2)
+                        {
+                            matchCounter++;
+                            if(pairNumber1 == -1)
+                               pairNumber1 = markerVal;
 
+                            else if(pairNumber2 == -1)
+                                pairNumber2 = markerVal2;
+                        }
+                    }
+                    
+                    //Pair coordinates is found; Eliminate pair number markers from the other coordinates
+                    if(matchCounter == 2 && otherCounter == 0)
+                    {
+                        for(var jA = 0; jA < SUDOKU_BOARD_LENGTH; jA++)
+                        {
+                            //ignore pair coordinates
+                            if(jA == j || jA == j2)
+                                continue;
+
+                            for(var kA = 0; kA < SUDOKU_BOARD_LENGTH; kA++)
+                            {
+                                //eliminate pair numbers from the other coordinates
+                                var markerValue = markerBoard[jA][i][kA];
+                                if(markerValue == pairNumber1 || markerValue == pairNumber2)
+                                {
+                                     markerBoard[jA][i][kA] = 0;
+                                     madeProgress = true;   
+                                }   
+                            }
+                        }
+                    }
+                }//end for loop [j2]
+            }//end for loop [j]
+        }//end for loop [i]  
+        return madeProgress;
+    }
+
+    /* Find pair of coordinates with only two remaining markers, which are identical.
+     * E.g.
+     * 1 0 0 0 0 0 0 0 9
+     * 1 0 0 0 0 0 0 0 9
+     * Eliminate 1 and 9 markers from the other coordinates in column. 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise
+     */
+    $.pairMarkerSweeperColumn = function(markerBoard)
+    {
+        var madeProgress = false;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate two coordinates in column at a time
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //Iterate subset; comparing current coordinate to subset coordinate 
+                for(var j2 = j + 1; j2 < SUDOKU_BOARD_LENGTH; j2++)
+                {
+                    var matchCounter = 0;
+                    var otherCounter = 0;
+                    var pairNumber1 = -1;
+                    var pairNumber2 = -1;
+                    
+                    //skip iteration if markers list does not have exactly two markers
+                    if(!$.hasTwoMarkersLeft(markerBoard[i][j]) || !$.hasTwoMarkersLeft(markerBoard[i][j2]))
+                        continue;
+                        
+                    //Iterate pair coordinates' marker list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerVal = markerBoard[i][j][k];
+                        var markerVal2 = markerBoard[i][j2][k];
+                        
+                        if(markerVal != 0 && markerVal2 != 0 && markerVal == markerVal2)
+                        {
+                            matchCounter++;
+                            if(pairNumber1 == -1)
+                               pairNumber1 = markerVal;
+
+                            else if(pairNumber2 == -1)
+                                pairNumber2 = markerVal2;
+                        }
+                    }
+                    
+                    //Pair coordinates is found; Eliminate pair number markers from the other coordinates
+                    if(matchCounter == 2 && otherCounter == 0)
+                    {
+                        for(var jA = 0; jA < SUDOKU_BOARD_LENGTH; jA++)
+                        {
+                            //ignore pair coordinates
+                            if(jA == j || jA == j2)
+                                continue;
+
+                            for(var kA = 0; kA < SUDOKU_BOARD_LENGTH; kA++)
+                            {
+                                //eliminate pair numbers from the other coordinates
+                                var markerValue = markerBoard[i][jA][kA];
+                                if(markerValue == pairNumber1 || markerValue == pairNumber2)
+                                {
+                                     markerBoard[i][jA][kA] = 0;
+                                     madeProgress = true;   
+                                }   
+                            }
+                        }
+                    }
+                }//end for loop [j2]
+            }//end for loop [j]
+        }//end for loop [i]  
+        return madeProgress;
+    }
     
     /* Find pair of coordinates with only two remaining markers, which are identical.
      * E.g.
