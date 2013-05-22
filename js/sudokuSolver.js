@@ -118,11 +118,14 @@ $(document).ready(function()
             madeProgress = $.lastNumberMarkerInRowPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in row
             
             if(!madeProgress)
-                break;
+            {
+                 $.enumerateAllPossibilities(markerBoard);//calculate the cartesian product of the left of markers
+                 break;    
+            }
+               
         }
 
-        $.printMarkerBoardByQuadrant(markerBoard);
-        $.printPuzzleBoard(puzzleBoard);
+        //$.printPuzzleBoard(puzzleBoard);
         console.log($.validateSudokuConstraint(puzzleBoard));
         $.displayResults(puzzleBoard);
     });
@@ -130,6 +133,99 @@ $(document).ready(function()
 
 (function($)
 {
+    /*
+     * Calculates the cartesian product of the remaining markers.
+     * @param - markerBoard [3D Array]
+     * @return - [List of Arrays] may contain possible solution to puzzle
+     * [Not used]
+     */
+    $.enumerateAllPossibilities = function(markerBoard)
+    {
+        //$.printMarkerBoardByQuadrant(markerBoard);
+        //Enumerate all possibilities
+        var cartProd = $.cartesianProduct
+        (
+            $.removeElementsWithValue(markerBoard[0][0],0),$.removeElementsWithValue(markerBoard[0][1],0),$.removeElementsWithValue(markerBoard[0][2],0),$.removeElementsWithValue(markerBoard[0][3],0),$.removeElementsWithValue(markerBoard[0][4],0),$.removeElementsWithValue(markerBoard[0][5],0),$.removeElementsWithValue(markerBoard[0][6],0),$.removeElementsWithValue(markerBoard[0][7],0),$.removeElementsWithValue(markerBoard[0][8],0),
+            $.removeElementsWithValue(markerBoard[1][0],0),$.removeElementsWithValue(markerBoard[1][1],0),$.removeElementsWithValue(markerBoard[1][2],0),$.removeElementsWithValue(markerBoard[1][3],0),$.removeElementsWithValue(markerBoard[1][4],0),$.removeElementsWithValue(markerBoard[1][5],0),$.removeElementsWithValue(markerBoard[1][6],0),$.removeElementsWithValue(markerBoard[1][7],0),$.removeElementsWithValue(markerBoard[1][8],0),
+            $.removeElementsWithValue(markerBoard[2][0],0),$.removeElementsWithValue(markerBoard[2][1],0),$.removeElementsWithValue(markerBoard[2][2],0),$.removeElementsWithValue(markerBoard[2][3],0),$.removeElementsWithValue(markerBoard[2][4],0),$.removeElementsWithValue(markerBoard[2][5],0),$.removeElementsWithValue(markerBoard[2][6],0),$.removeElementsWithValue(markerBoard[2][7],0),$.removeElementsWithValue(markerBoard[2][8],0),
+            $.removeElementsWithValue(markerBoard[3][0],0),$.removeElementsWithValue(markerBoard[3][1],0),$.removeElementsWithValue(markerBoard[3][2],0),$.removeElementsWithValue(markerBoard[3][3],0),$.removeElementsWithValue(markerBoard[3][4],0),$.removeElementsWithValue(markerBoard[3][5],0),$.removeElementsWithValue(markerBoard[3][6],0),$.removeElementsWithValue(markerBoard[3][7],0),$.removeElementsWithValue(markerBoard[3][8],0),
+            $.removeElementsWithValue(markerBoard[4][0],0),$.removeElementsWithValue(markerBoard[4][1],0),$.removeElementsWithValue(markerBoard[4][2],0),$.removeElementsWithValue(markerBoard[4][3],0),$.removeElementsWithValue(markerBoard[4][4],0),$.removeElementsWithValue(markerBoard[4][5],0),$.removeElementsWithValue(markerBoard[4][6],0),$.removeElementsWithValue(markerBoard[4][7],0),$.removeElementsWithValue(markerBoard[4][8],0),
+            $.removeElementsWithValue(markerBoard[5][0],0),$.removeElementsWithValue(markerBoard[5][1],0),$.removeElementsWithValue(markerBoard[5][2],0),$.removeElementsWithValue(markerBoard[5][3],0),$.removeElementsWithValue(markerBoard[5][4],0),$.removeElementsWithValue(markerBoard[5][5],0),$.removeElementsWithValue(markerBoard[5][6],0),$.removeElementsWithValue(markerBoard[5][7],0),$.removeElementsWithValue(markerBoard[5][8],0),
+            $.removeElementsWithValue(markerBoard[6][0],0),$.removeElementsWithValue(markerBoard[6][1],0),$.removeElementsWithValue(markerBoard[6][2],0),$.removeElementsWithValue(markerBoard[6][3],0),$.removeElementsWithValue(markerBoard[6][4],0),$.removeElementsWithValue(markerBoard[6][5],0),$.removeElementsWithValue(markerBoard[6][6],0),$.removeElementsWithValue(markerBoard[6][7],0),$.removeElementsWithValue(markerBoard[6][8],0),
+            $.removeElementsWithValue(markerBoard[7][0],0),$.removeElementsWithValue(markerBoard[7][1],0),$.removeElementsWithValue(markerBoard[7][2],0),$.removeElementsWithValue(markerBoard[7][3],0),$.removeElementsWithValue(markerBoard[7][4],0),$.removeElementsWithValue(markerBoard[7][5],0),$.removeElementsWithValue(markerBoard[7][6],0),$.removeElementsWithValue(markerBoard[7][7],0),$.removeElementsWithValue(markerBoard[7][8],0),
+            $.removeElementsWithValue(markerBoard[8][0],0),$.removeElementsWithValue(markerBoard[8][1],0),$.removeElementsWithValue(markerBoard[8][2],0),$.removeElementsWithValue(markerBoard[8][3],0),$.removeElementsWithValue(markerBoard[8][4],0),$.removeElementsWithValue(markerBoard[8][5],0),$.removeElementsWithValue(markerBoard[8][6],0),$.removeElementsWithValue(markerBoard[8][7],0),$.removeElementsWithValue(markerBoard[8][8],0)
+        );
+
+        //if(cartProd != null)
+        console.log(cartProd);
+    }
+    
+    /*
+     * Remove a given element from array.
+     * @param arr [Array]
+     * @param val element to remove from array 
+     */
+    $.removeElementsWithValue = function(arr, val) 
+    {
+        var i = arr.length;
+        while (i--) {
+            if (arr[i] === val) {
+                arr.splice(i, 1);
+            }
+        }
+        return arr;
+    }
+    
+    /*
+     * Get the cartesian product of the elements given
+     * in the list of arrays. 
+     * @return - list of arrays with the results of the cartesian product
+     * Note: This method will overload the program and the program will crash.
+     * [Not used]
+     */
+    $.cartesianProduct = function() 
+    {
+        $.addTo = function(curr, args) 
+        {
+            var i, copy, 
+                rest = args.slice(1),
+                last = !rest.length,
+                result = [];
+
+            for (i = 0; i < args[0].length; i++) 
+            {
+                copy = curr.slice();
+                copy.push(args[0][i]);
+
+                if (last) 
+                  result.push(copy);
+
+                else 
+                  result = result.concat($.addTo(copy, rest));
+            }
+
+            return result;
+        }
+  
+        //Get arguments and get Array functionailties
+        var arrayList =  Array.prototype.slice.call(arguments); 
+        var arrayListLength = arrayList.length;
+        var startIndex = arrayListLength - 1;
+        
+        //Remove all the empty arrays from argument
+        //Iterate reverse to prevent index recalcuation
+        for(var a = startIndex ; a >= 0; a--)
+        {
+           if(arrayList[a].length == 0)
+               arrayList.splice(a,1);
+        }
+        
+        if(arrayList.length == 0)
+            return null;
+        
+        return $.addTo([], arrayList); //call function to apply cartestian product
+    }
+    
     /*
      * Inspect each column for horizontal line markers isolated in a single quadrant
      * in a given region. The three regions are made of the following quadrant: 
