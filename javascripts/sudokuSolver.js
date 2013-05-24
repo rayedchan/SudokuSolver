@@ -20,6 +20,9 @@
 
 
 var SUDOKU_BOARD_LENGTH = 9;
+var puzzleBoard;
+var markerBoard;
+var quadrantBoard;
 
 //Load DOM and ready to be manipulated.
 $(document).ready(function()
@@ -34,9 +37,9 @@ $(document).ready(function()
          *      The marker list represents all the possible numbers that can be place in that coordinate.
          * quadrantBoard [2D Array 9x9] - used to determine the quadrant for a coordinate
          */
-        var puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); 
-        var markerBoard = new Array(SUDOKU_BOARD_LENGTH); 
-        var quadrantBoard = new Array(SUDOKU_BOARD_LENGTH);
+        puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); 
+        markerBoard = new Array(SUDOKU_BOARD_LENGTH); 
+        quadrantBoard = new Array(SUDOKU_BOARD_LENGTH);
         for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
             //add columns to boards
@@ -65,43 +68,28 @@ $(document).ready(function()
                 quadrantBoard[x][y] = i; //populate quadrant board
             }
         }
-        //TODO: Validate user input
-        //console.log($.validateSudokuConstraint(puzzleBoard)); //check if current board is valid
         
-        var continuousLoop = true;
-        while(continuousLoop)
+        $.solve();
+        $.displayResults(puzzleBoard); 
+    });
+});
+
+(function($)
+{
+    $.solve = function()
+    {
+        //Apply sudoku techniques here if puzzle board has empty spaces
+        var madeProgress = false; //Placement of tile or removal of markers is considered making progress
+        while(!$.isPuzzleBoardFilled(puzzleBoard))
         {
-            var madeProgress = false; //Placement of tile or removal of markers is considered making progress
-            
-            //Iterate entire puzzle board
-            for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
-            {
-                for(j = 0; j < SUDOKU_BOARD_LENGTH; j++)
-                {
-                    var coordinateValue = puzzleBoard[i][j];
-                    var coordinateQuadrant = quadrantBoard[i][j]; 
-                   
-                    if(coordinateValue != 0 && $.doesCoordinateHaveMarkers(markerBoard[i][j]))
-                    {
-                        madeProgress = true;
-                        for(k = 0; k < SUDOKU_BOARD_LENGTH; k++)
-                        {
-                            markerBoard[i][j][k] = 0; //remove markers from self 
-                            markerBoard[k][j][coordinateValue - 1] = 0; //remove markers from row
-                            markerBoard[i][k][coordinateValue - 1] = 0; //remove markers from column
-                            x = (k % 3) + (3 * (coordinateQuadrant % 3)); 
-                            y = Math.floor(k / 3) + (3 * Math.floor(coordinateQuadrant / 3));
-                            markerBoard[x][y][coordinateValue - 1] = 0; //remove markers from quadrant
-                            //console.log(k + ", " + j);
-                            //console.log(i + ", " + k);
-                            //console.log(x + ", " + y);
-                        }
-                    }
-                }
-            }
+            madeProgress = $.sudokuConditionsMarkerEliminator(puzzleBoard, markerBoard, quadrantBoard); //Eliminate markers by sudoku game rules
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
-            madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find coordinates with two remaining exact markers in quadrant
+            madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(markerBoard,quadrantBoard); //Inspect each row to find vertical markers isolated in a single quadrant in a region of three vertical, and eliminate marker numbers in current quadrant except the vertical markers  
+            madeProgress = $.quadrantMarkerReductionByIsolatedHorizontalLine(markerBoard,quadrantBoard); //Inspect each row to find horizontal markers isolated in a single quadrant in a region of three quadrant, and eliminate marker numbers in current quadrant except the horizontal markers 
+            madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find pair of coordinates with two remaining markers which are identical in quadrant
+            madeProgress = $.pairMarkerSweeperColumn(markerBoard);//Find pair of coordinates with two remaining markers which are identical in column
+            madeProgress = $.pairMarkerSweeperRow(markerBoard);//Find pair coordinates with two remaining markers which are identical in row
             madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for pair of coordinate with exact markers 
             madeProgress = $.hiddenCloneMarkerCleanerColumn(markerBoard); //Inspect each column for pair of coordinates with exact markers
             madeProgress = $.hiddenCloneMarkerCleanerRow(markerBoard); //Inspect each row for pair coordinates with exact markers 
@@ -114,21 +102,542 @@ $(document).ready(function()
             madeProgress = $.lastNumberMarkerInRowPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in row
             
             if(!madeProgress)
-                break;
+                 break;           
         }
+        
+        //Check if the puzzle board is solved
+        if($.isPuzzleBoardFilled(puzzleBoard) && $.validateSudokuConstraint(puzzleBoard))
+            return true;
+      
+        //Check if there are empty spaces on puzzle board with no possible values left => unsolvable case
+        if($.checkCoordinateWithNoPossibleValues(puzzleBoard, markerBoard))
+            return false;
+        
+        //Iterate if there are coordinates with possible values left to choose from
+        while($.moreMarkersLeft(markerBoard))
+        {
+            //Find coordinate with the least number of choices
+            var coordinate = $.findCoordinateWithLeastPossibleChoices(puzzleBoard,markerBoard);
+            var coordX = coordinate.x;
+            var coordY = coordinate.y;
+            
+            if(coordX == -1 && coordY == -1)
+                return false; //unsolvable case
+            
+            //get guess number from markerBoard and eliminate from marker board
+            var guessNumber = $.getGuessNumber(markerBoard, coordinate);
+            
+            //deep copy of boards; object references in list object are differnt from original including the list object itself 
+            var puzzleBoardDeepCopy = jQuery.extend(true, [], puzzleBoard);
+            var markerBoardDeepCopy = jQuery.extend(true, [], markerBoard);
+            
+            //Fill the guessNumber onto the puzzle board
+            puzzleBoard[coordX][coordY] = guessNumber;
+            
+            //recursively call the this function 
+            if($.solve())
+                return true;
+            
+            //GuessNumber is incorrect at this point; Backtrack to previous state of the boards
+            puzzleBoard = puzzleBoardDeepCopy;
+            markerBoard = markerBoardDeepCopy;  
+        }
+        
+        return false;
+    }
+    
+    /*
+     * Get the first non-zero number from markerboard at the given coordinate.
+     * Eliminate the chosen number from marker board.
+     * @param - markerBoard[3D Array] contains the set of marker list for each coordinate
+     * @param - coordinate [Object with x and y properties] position of the coordinate
+     * @return - number from marker board
+     */
+    $.getGuessNumber = function(markerBoard, coordinate)
+    {
+        for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+        {
+            var guessNumber = markerBoard[coordinate.x][coordinate.y][k];
+            if(guessNumber != 0)
+            {
+                markerBoard[coordinate.x][coordinate.y][k] = 0;
+                return guessNumber;
+            }
+        }
+        
+        console.log("Error: Should not reach here.");
+        return 0;
+    }
+    
+    /*
+     * Finds the coordinate with the least possible choices
+     * @param - puzzleBoard [2D Array]
+     * @param - markerBoard [3D Array]
+     * @return - coordinate object {'x': <value>, 'y': <value>}; otherwise {'x':-1, 'y': -1} for invalid case
+     */
+    $.findCoordinateWithLeastPossibleChoices = function(puzzleBoard, markerBoard)
+    {
+        var coordinate = {'x': -1, 'y': -1};
+        var leastMarkerCount = 100;
+    
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var coordinateValue = puzzleBoard[i][j];
+                
+                //Check only coordinates that do not have a value
+                if(coordinateValue == 0)
+                {
+                    var markerCount = 0;
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[i][j][k];
+                        if(markerValue != 0)
+                             markerCount++; //increment non-zero markers    
+                    }
+                    
+                    
+                    if(markerCount != 0 && markerCount < leastMarkerCount)
+                    {
+                         leastMarkerCount = markerCount; //new lowest value
+                         //keep track of coordinate position
+                         coordinate.x = i; 
+                         coordinate.y = j;
+                    }
+                }
+            }
+        }
+        
+        return coordinate;
+    }
+    
+    /*
+     * Determines if there are any more markers left.
+     * @param - markerBoard [3D Array]
+     * @return - true if there are markers left; otherwise false
+     */
+    $.moreMarkersLeft = function (markerBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                    var markerValue = markerBoard[i][j][k];
+                    if(markerValue != 0)
+                        return true;
+                }  
+            }
+        }
+        
+        return false;
+    }
+    
+    /*
+     * Determines if there are any coordinates that is empty and has no possible value left.
+     * If yes, this determines that the puzzle is unsolvable.
+     * @param - puzzleBoard [2D Array]
+     * @param - markerBoard [3D Array]
+     * @return - true if puzzle is still solvable; false otherwise 
+     */
+    $.checkCoordinateWithNoPossibleValues = function(puzzleBoard, markerBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var coordinateValue = puzzleBoard[i][j];
+                
+                //Check only coordinates that do not have a value
+                if(coordinateValue == 0)
+                {
+                    var hasPossibleValuesLeft = false;
+                    
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[i][j][k];
+                        if(markerValue != 0)
+                        {
+                             hasPossibleValuesLeft = true;
+                             break;
+                        }
+                    }
+                    
+                    //Found a coordinate that is empty and has no possible values left
+                    if(!hasPossibleValuesLeft)
+                        return true;
+                }
+            }
+        }
+       
+        return false;
+    }
+    
+    /*
+     * Determines if the puzzle board is completed.
+     * @param - puzzleBoard [2D Array]
+     * @return - true if puzzle is completed; false otherwise.
+     */
+    $.isPuzzleBoardFilled = function(puzzleBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                if(puzzleBoard[i][j] == 0)
+                    return false;
+            }
+        }
+        return true;
+    }
+    
+    /*
+     *Recursively square each element in array.
+     *@param list
+     *@param length
+     *[Testing Method]
+     */
+    $.recursiveSquaring = function(list, length)
+    {
+        console.log(length);
+        if(length == 0)
+            return list;
+        
+        else
+        {
+            list[length] = list[length] * list[length];
+            var newList = $.recursiveSquaring(list, length - 1);
+            console.log(length);
+            return newList;
+        } 
+    }
+    
+    /*
+     * Looks at the current board and eliminates the markers
+     * by applying sudoku row, column, and quadrant number 
+     * uniqueness conditions.
+     * @param - puzzleBoard [2D Array] contains the current puzzle
+     * @param - markerBoard [3D Array] contains the the possible values for each coordinate
+     * @param - quadrantBoard [2D Array] conatins the quadrant indicator for each coordinate
+     * @return - true if any marker has been eliminated; false otherwise
+     */
+    $.sudokuConditionsMarkerEliminator = function(puzzleBoard, markerBoard, quadrantBoard)
+    {
+        var madeProgress = false; //Placement of tile or removal of markers is considered making progress
+            
+        //Iterate entire puzzle board
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var coordinateValue = puzzleBoard[i][j];
+                var coordinateQuadrant = quadrantBoard[i][j]; 
 
-        $.printMarkerBoardByQuadrant(markerBoard);
-        $.printPuzzleBoard(puzzleBoard);
-        console.log($.validateSudokuConstraint(puzzleBoard));
-        $.displayResults(puzzleBoard);
-    });
-});
+                if(coordinateValue != 0)
+                {
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        if(markerBoard[i][j][k] != 0)
+                        {
+                            markerBoard[i][j][k] = 0; //remove markers from self
+                            madeProgress = true;
+                        }
+                        
+                        if(markerBoard[k][j][coordinateValue - 1] != 0)
+                        {
+                            markerBoard[k][j][coordinateValue - 1] = 0; //remove markers from row
+                            madeProgress = true;
+                        }
+                        
+                        if(markerBoard[i][k][coordinateValue - 1] != 0)
+                        {
+                            markerBoard[i][k][coordinateValue - 1] = 0; //remove markers from column
+                            madeProgress = true;
+                        }
+                        
+                        var x = (k % 3) + (3 * (coordinateQuadrant % 3)); 
+                        var y = Math.floor(k / 3) + (3 * Math.floor(coordinateQuadrant / 3));
+                        
+                        if(markerBoard[x][y][coordinateValue - 1] != 0)
+                        {
+                            markerBoard[x][y][coordinateValue - 1] = 0; //remove markers from quadrant
+                            madeProgress = true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return madeProgress;
+    }
+    
+    
+    /*
+     * Calculates the cartesian product of the remaining markers.
+     * @param - markerBoard [3D Array]
+     * @return - [List of Arrays] may contain possible solution to puzzle
+     * [Not used]
+     */
+    $.enumerateAllPossibilities = function(markerBoard)
+    {
+        //$.printMarkerBoardByQuadrant(markerBoard);
+        //Enumerate all possibilities
+        var cartProd = $.cartesianProduct
+        (
+            $.removeElementsWithValue(markerBoard[0][0],0),$.removeElementsWithValue(markerBoard[0][1],0),$.removeElementsWithValue(markerBoard[0][2],0),$.removeElementsWithValue(markerBoard[0][3],0),$.removeElementsWithValue(markerBoard[0][4],0),$.removeElementsWithValue(markerBoard[0][5],0),$.removeElementsWithValue(markerBoard[0][6],0),$.removeElementsWithValue(markerBoard[0][7],0),$.removeElementsWithValue(markerBoard[0][8],0),
+            $.removeElementsWithValue(markerBoard[1][0],0),$.removeElementsWithValue(markerBoard[1][1],0),$.removeElementsWithValue(markerBoard[1][2],0),$.removeElementsWithValue(markerBoard[1][3],0),$.removeElementsWithValue(markerBoard[1][4],0),$.removeElementsWithValue(markerBoard[1][5],0),$.removeElementsWithValue(markerBoard[1][6],0),$.removeElementsWithValue(markerBoard[1][7],0),$.removeElementsWithValue(markerBoard[1][8],0),
+            $.removeElementsWithValue(markerBoard[2][0],0),$.removeElementsWithValue(markerBoard[2][1],0),$.removeElementsWithValue(markerBoard[2][2],0),$.removeElementsWithValue(markerBoard[2][3],0),$.removeElementsWithValue(markerBoard[2][4],0),$.removeElementsWithValue(markerBoard[2][5],0),$.removeElementsWithValue(markerBoard[2][6],0),$.removeElementsWithValue(markerBoard[2][7],0),$.removeElementsWithValue(markerBoard[2][8],0),
+            $.removeElementsWithValue(markerBoard[3][0],0),$.removeElementsWithValue(markerBoard[3][1],0),$.removeElementsWithValue(markerBoard[3][2],0),$.removeElementsWithValue(markerBoard[3][3],0),$.removeElementsWithValue(markerBoard[3][4],0),$.removeElementsWithValue(markerBoard[3][5],0),$.removeElementsWithValue(markerBoard[3][6],0),$.removeElementsWithValue(markerBoard[3][7],0),$.removeElementsWithValue(markerBoard[3][8],0),
+            $.removeElementsWithValue(markerBoard[4][0],0),$.removeElementsWithValue(markerBoard[4][1],0),$.removeElementsWithValue(markerBoard[4][2],0),$.removeElementsWithValue(markerBoard[4][3],0),$.removeElementsWithValue(markerBoard[4][4],0),$.removeElementsWithValue(markerBoard[4][5],0),$.removeElementsWithValue(markerBoard[4][6],0),$.removeElementsWithValue(markerBoard[4][7],0),$.removeElementsWithValue(markerBoard[4][8],0),
+            $.removeElementsWithValue(markerBoard[5][0],0),$.removeElementsWithValue(markerBoard[5][1],0),$.removeElementsWithValue(markerBoard[5][2],0),$.removeElementsWithValue(markerBoard[5][3],0),$.removeElementsWithValue(markerBoard[5][4],0),$.removeElementsWithValue(markerBoard[5][5],0),$.removeElementsWithValue(markerBoard[5][6],0),$.removeElementsWithValue(markerBoard[5][7],0),$.removeElementsWithValue(markerBoard[5][8],0),
+            $.removeElementsWithValue(markerBoard[6][0],0),$.removeElementsWithValue(markerBoard[6][1],0),$.removeElementsWithValue(markerBoard[6][2],0),$.removeElementsWithValue(markerBoard[6][3],0),$.removeElementsWithValue(markerBoard[6][4],0),$.removeElementsWithValue(markerBoard[6][5],0),$.removeElementsWithValue(markerBoard[6][6],0),$.removeElementsWithValue(markerBoard[6][7],0),$.removeElementsWithValue(markerBoard[6][8],0),
+            $.removeElementsWithValue(markerBoard[7][0],0),$.removeElementsWithValue(markerBoard[7][1],0),$.removeElementsWithValue(markerBoard[7][2],0),$.removeElementsWithValue(markerBoard[7][3],0),$.removeElementsWithValue(markerBoard[7][4],0),$.removeElementsWithValue(markerBoard[7][5],0),$.removeElementsWithValue(markerBoard[7][6],0),$.removeElementsWithValue(markerBoard[7][7],0),$.removeElementsWithValue(markerBoard[7][8],0),
+            $.removeElementsWithValue(markerBoard[8][0],0),$.removeElementsWithValue(markerBoard[8][1],0),$.removeElementsWithValue(markerBoard[8][2],0),$.removeElementsWithValue(markerBoard[8][3],0),$.removeElementsWithValue(markerBoard[8][4],0),$.removeElementsWithValue(markerBoard[8][5],0),$.removeElementsWithValue(markerBoard[8][6],0),$.removeElementsWithValue(markerBoard[8][7],0),$.removeElementsWithValue(markerBoard[8][8],0)
+        );
 
-(function($)
-{
+        if(cartProd != null)
+            console.log(cartProd);
+    }
+    
+    /*
+     * Remove a given element from array.
+     * @param arr [Array]
+     * @param val element to remove from array 
+     */
+    $.removeElementsWithValue = function(arr, val) 
+    {
+        var i = arr.length;
+        while (i--) {
+            if (arr[i] === val) {
+                arr.splice(i, 1);
+            }
+        }
+        return arr;
+    }
+    
+    /*
+     * Get the cartesian product of the elements given
+     * in the list of arrays. 
+     * @return - list of arrays with the results of the cartesian product
+     * Note: This method will overload the program and the program will crash.
+     * [Not used]
+     */
+    $.cartesianProduct = function() 
+    {
+        $.addTo = function(curr, args) 
+        {
+            var i, copy, 
+                rest = args.slice(1),
+                last = !rest.length,
+                result = [];
+
+            for (i = 0; i < args[0].length; i++) 
+            {
+                copy = curr.slice();
+                copy.push(args[0][i]);
+
+                if (last) 
+                  result.push(copy);
+
+                else 
+                  result = result.concat($.addTo(copy, rest));
+            }
+
+            return result;
+        }
+  
+        //Get arguments and get Array functionailties
+        var arrayList =  Array.prototype.slice.call(arguments); 
+        var arrayListLength = arrayList.length;
+        var startIndex = arrayListLength - 1;
+        
+        //Remove all the empty arrays from argument
+        //Iterate reverse to prevent index recalcuation
+        for(var a = startIndex ; a >= 0; a--)
+        {
+           if(arrayList[a].length == 0)
+               arrayList.splice(a,1);
+        }
+        
+        if(arrayList.length == 0)
+            return null;
+        
+        return $.addTo([], arrayList); //call function to apply cartestian product
+    }
+    
+    /*
+     * Inspect each column for horizontal line markers isolated in a single quadrant
+     * in a given region. The three regions are made of the following quadrant: 
+     * region 1 (I, II, III)
+     * region 2 (IV, V, VI)
+     * region 3 (VII, VIII, IX)
+     * Eliminate horizontal marker number from quadrant except for the coordinates 
+     * that form the horizonatal line if a isolated horizontal markers line is found.
+     * @param - markerBoard [3D Array] contains marker list of each coordinate
+     * @param - quadrantBoard [2D Array] contains the quadrant for each coordinate
+     * return - true if any markers are eliminated; false otherwise
+     */
+    $.quadrantMarkerReductionByIsolatedHorizontalLine = function (markerBoard,quadrantBoard)
+    {   
+        var madeProgress = false;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate each sudoku number
+            for(var num = 1; num < 10; num++)
+            {
+                var areHorizontalMarkersInSingleQuadrant = false;
+                var quadrantTracker = -1;
+                
+                //Iterate each coordinate in row
+                for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+                {
+                    var currentQuadrant = quadrantBoard[j][i];
+                    //console.log(currentQuadrant);
+                    
+                    //Iterate coordinate's marker's list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[j][i][k];
+
+                        //Compare current marker value with current number
+                        if(markerValue == num)
+                        {
+                            //First Element 
+                            if(quadrantTracker == -1)
+                            {
+                                quadrantTracker = currentQuadrant;
+                                continue;
+                            }
+                            
+                            //Non-first elements
+                            else if(quadrantTracker != currentQuadrant)
+                            {
+                                areHorizontalMarkersInSingleQuadrant = false;
+                                break;
+                            }
+                            
+                            areHorizontalMarkersInSingleQuadrant = true;
+                        }
+                    }//end for loop [k]
+                }//end for loop [j]
+                
+                if(areHorizontalMarkersInSingleQuadrant)
+                {
+                    //Iterate coordinate specific quadrant 
+                    for(var quadIt = 0; quadIt < SUDOKU_BOARD_LENGTH; quadIt++)
+                    {
+                         var x = (quadIt % 3) + (3 * (quadrantTracker % 3)); 
+                         var y = Math.floor(quadIt / 3) + (3 * Math.floor(quadrantTracker / 3));
+                         //console.log("(" + x + ", " + y + ")");
+                         
+                         //skip horizontal markers (current row)
+                         if(y == i)
+                             continue;
+                         
+                         //Eliminate horizontal marker number from the other coordinates
+                         if(markerBoard[x][y][num - 1] != 0)
+                         {
+                              markerBoard[x][y][num - 1] = 0;
+                              madeProgress = true;
+                         }
+                    }//end for loop [quadIt] 
+                } 
+            }//end for loop [num]
+        }
+        return madeProgress;
+    }
+    
+    /*
+     * Inspect each column for vertical line markers isolated in a single quadrant
+     * in a given region. The three regions are made of the following quadrant: 
+     * region 1 (I, IV, VII)
+     * region 2 (II, V, VIII)
+     * region 3 (III, VI, IX)
+     * Eliminate vertical marker number from quadrant except for the coordinates 
+     * that form the vertical line if a isolated vertical markers line is found.
+     * @param - markerBoard [3D Array] contains marker list of each coordinate
+     * @param - quadrantBoard [2D Array] contains the quadrant for each coordinate
+     * return - true if any markers are eliminated; false otherwise
+     */
+    $.quadrantMarkerReductionByIsolatedVerticalLine = function (markerBoard,quadrantBoard)
+    {   
+        var madeProgress = false;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate each sudoku number
+            for(var num = 1; num < 10; num++)
+            {
+                var areVerticalMarkersInSingleQuadrant = false;
+                var quadrantTracker = -1;
+                
+                //Iterate each coordinate in column
+                for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+                {
+                    var currentQuadrant = quadrantBoard[i][j];
+                    
+                    //Iterate coordinate's marker's list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[i][j][k];
+
+                        
+                        //Compare current marker value with current number
+                        if(markerValue == num)
+                        {
+                            //First Element 
+                            if(quadrantTracker == -1)
+                            {
+                                quadrantTracker = currentQuadrant;
+                                continue;
+                            }
+                            
+                            //Non-first elements
+                            else if(quadrantTracker != currentQuadrant)
+                            {
+                                areVerticalMarkersInSingleQuadrant = false;
+                                break;
+                            }
+                            
+                            areVerticalMarkersInSingleQuadrant = true;
+                        }
+                    }//end for loop [k]
+                }//end for loop [j]
+                
+                if(areVerticalMarkersInSingleQuadrant)
+                {
+                    //Iterate coordinate specific quadrant 
+                    for(var quadIt = 0; quadIt < SUDOKU_BOARD_LENGTH; quadIt++)
+                    {
+                         var x = (quadIt % 3) + (3 * (quadrantTracker % 3)); 
+                         var y = Math.floor(quadIt / 3) + (3 * Math.floor(quadrantTracker / 3));
+                         
+                         //skip vertical markers (current column)
+                         if(x == i)
+                             continue;
+                         
+                         //Eliminate vertical marker number from the other coordinates
+                         if(markerBoard[x][y][num - 1] != 0)
+                         {
+                              markerBoard[x][y][num - 1] = 0;
+                              madeProgress = true;
+                         }
+                    }//end for loop [quadIt] 
+                } 
+            }//end for loop [num]
+        }
+        
+        return madeProgress;
+    }
+    
     /*
      * Display results on the front-end side.
-     * @param puzzleBoard [2D Array]
+     * @param - puzzleBoard [2D Array]
      */
     $.displayResults = function(puzzleBoard)
     {
@@ -150,7 +659,154 @@ $(document).ready(function()
             }  
         }
     }
+    
+     /* Find pair of coordinates with only two remaining markers, which are identical.
+     * E.g.
+     * 1 0 0 0 0 0 0 0 9
+     * 1 0 0 0 0 0 0 0 9
+     * Eliminate 1 and 9 markers from the other coordinates in row. 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise
+     */
+    $.pairMarkerSweeperRow = function(markerBoard)
+    {
+        var madeProgress = false;
+        
+        //Iterate each row
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate two coordinates in row at a time
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //Iterate subset; comparing current coordinate to subset coordinate 
+                for(var j2 = j + 1; j2 < SUDOKU_BOARD_LENGTH; j2++)
+                {
+                    var matchCounter = 0;
+                    var otherCounter = 0;
+                    var pairNumber1 = -1;
+                    var pairNumber2 = -1;
+                    
+                    //skip iteration if markers list does not have exactly two markers
+                    if(!$.hasTwoMarkersLeft(markerBoard[j][i]) || !$.hasTwoMarkersLeft(markerBoard[j2][i]))
+                        continue;
+                        
+                    //Iterate pair coordinates' marker list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerVal = markerBoard[j][i][k];
+                        var markerVal2 = markerBoard[j2][i][k];
+                        
+                        if(markerVal != 0 && markerVal2 != 0 && markerVal == markerVal2)
+                        {
+                            matchCounter++;
+                            if(pairNumber1 == -1)
+                               pairNumber1 = markerVal;
 
+                            else if(pairNumber2 == -1)
+                                pairNumber2 = markerVal2;
+                        }
+                    }
+                    
+                    //Pair coordinates is found; Eliminate pair number markers from the other coordinates
+                    if(matchCounter == 2 && otherCounter == 0)
+                    {
+                        for(var jA = 0; jA < SUDOKU_BOARD_LENGTH; jA++)
+                        {
+                            //ignore pair coordinates
+                            if(jA == j || jA == j2)
+                                continue;
+
+                            for(var kA = 0; kA < SUDOKU_BOARD_LENGTH; kA++)
+                            {
+                                //eliminate pair numbers from the other coordinates
+                                var markerValue = markerBoard[jA][i][kA];
+                                if(markerValue == pairNumber1 || markerValue == pairNumber2)
+                                {
+                                     markerBoard[jA][i][kA] = 0;
+                                     madeProgress = true;   
+                                }   
+                            }
+                        }
+                    }
+                }//end for loop [j2]
+            }//end for loop [j]
+        }//end for loop [i]  
+        return madeProgress;
+    }
+
+    /* Find pair of coordinates with only two remaining markers, which are identical.
+     * E.g.
+     * 1 0 0 0 0 0 0 0 9
+     * 1 0 0 0 0 0 0 0 9
+     * Eliminate 1 and 9 markers from the other coordinates in column. 
+     * @param - markerBoard [3D Array] contains marker list for each coordinate
+     * @return - true if any markers are eliminated; false otherwise
+     */
+    $.pairMarkerSweeperColumn = function(markerBoard)
+    {
+        var madeProgress = false;
+        
+        //Iterate each column
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            //Iterate two coordinates in column at a time
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                //Iterate subset; comparing current coordinate to subset coordinate 
+                for(var j2 = j + 1; j2 < SUDOKU_BOARD_LENGTH; j2++)
+                {
+                    var matchCounter = 0;
+                    var otherCounter = 0;
+                    var pairNumber1 = -1;
+                    var pairNumber2 = -1;
+                    
+                    //skip iteration if markers list does not have exactly two markers
+                    if(!$.hasTwoMarkersLeft(markerBoard[i][j]) || !$.hasTwoMarkersLeft(markerBoard[i][j2]))
+                        continue;
+                        
+                    //Iterate pair coordinates' marker list
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerVal = markerBoard[i][j][k];
+                        var markerVal2 = markerBoard[i][j2][k];
+                        
+                        if(markerVal != 0 && markerVal2 != 0 && markerVal == markerVal2)
+                        {
+                            matchCounter++;
+                            if(pairNumber1 == -1)
+                               pairNumber1 = markerVal;
+
+                            else if(pairNumber2 == -1)
+                                pairNumber2 = markerVal2;
+                        }
+                    }
+                    
+                    //Pair coordinates is found; Eliminate pair number markers from the other coordinates
+                    if(matchCounter == 2 && otherCounter == 0)
+                    {
+                        for(var jA = 0; jA < SUDOKU_BOARD_LENGTH; jA++)
+                        {
+                            //ignore pair coordinates
+                            if(jA == j || jA == j2)
+                                continue;
+
+                            for(var kA = 0; kA < SUDOKU_BOARD_LENGTH; kA++)
+                            {
+                                //eliminate pair numbers from the other coordinates
+                                var markerValue = markerBoard[i][jA][kA];
+                                if(markerValue == pairNumber1 || markerValue == pairNumber2)
+                                {
+                                     markerBoard[i][jA][kA] = 0;
+                                     madeProgress = true;   
+                                }   
+                            }
+                        }
+                    }
+                }//end for loop [j2]
+            }//end for loop [j]
+        }//end for loop [i]  
+        return madeProgress;
+    }
     
     /* Find pair of coordinates with only two remaining markers, which are identical.
      * E.g.
@@ -1342,13 +1998,20 @@ $(document).ready(function()
             
             for(var z = 0; z < markerCounterLength; z++)
             {
+                //Exclude zero value
+                if(z == 0)
+                {
+                     markerCounter[z] = 0;
+                     continue;
+                }
+                
                 //find the isolated marker in row; then place number
                 if(markerCounter[z] == 1)
                 {
                     var coordX = markerCoordinateTracker[z].x;
                     var coordY = markerCoordinateTracker[z].y;
                     puzzleBoard[coordX][coordY] = z; //place number
-                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    //console.log("(" + coordX + ", " + coordY + ") = " + z);
                     madeProgress = true;
                 }
                 
@@ -1394,13 +2057,20 @@ $(document).ready(function()
             
             for(var z = 0; z < markerCounterLength; z++)
             {
+                //Exclude zero value
+                if(z == 0)
+                {
+                     markerCounter[z] = 0;
+                     continue;
+                }
+                
                 //find the isolated marker in column; then place number
                 if(markerCounter[z] == 1)
                 {
                     var coordX = markerCoordinateTracker[z].x;
                     var coordY = markerCoordinateTracker[z].y;
                     puzzleBoard[coordX][coordY] = z; //place number
-                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    //console.log("(" + coordX + ", " + coordY + ") = " + z);
                     madeProgress = true;
                 }
                 
@@ -1449,13 +2119,20 @@ $(document).ready(function()
             
             for(var z = 0; z < markerCounterLength; z++)
             {
+                //Exclude zero value
+                if(z == 0)
+                {
+                     markerCounter[z] = 0;
+                     continue;
+                }
+                
                 //find the isolated marker in quadrant; then place number
                 if(markerCounter[z] == 1)
                 {
                     var coordX = markerCoordinateTracker[z].x;
                     var coordY = markerCoordinateTracker[z].y;
                     puzzleBoard[coordX][coordY] = z; //place number
-                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    //console.log("(" + coordX + ", " + coordY + ") = " + z);
                     madeProgress = true;
                 }
                 
@@ -1510,7 +2187,7 @@ $(document).ready(function()
                 
                 if(isLastNumber)
                 {
-                    console.log("(" + i + ", " + j + ") = " + markNumber);
+                    //console.log("(" + i + ", " + j + ") = " + markNumber);
                     puzzleBoard[i][j] = markNumber;
                     madeProgress = true;
                 }
