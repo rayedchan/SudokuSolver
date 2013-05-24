@@ -20,6 +20,9 @@
 
 
 var SUDOKU_BOARD_LENGTH = 9;
+var puzzleBoard;
+var markerBoard;
+var quadrantBoard;
 
 //Load DOM and ready to be manipulated.
 $(document).ready(function()
@@ -34,9 +37,9 @@ $(document).ready(function()
          *      The marker list represents all the possible numbers that can be place in that coordinate.
          * quadrantBoard [2D Array 9x9] - used to determine the quadrant for a coordinate
          */
-        var puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); 
-        var markerBoard = new Array(SUDOKU_BOARD_LENGTH); 
-        var quadrantBoard = new Array(SUDOKU_BOARD_LENGTH);
+        puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); 
+        markerBoard = new Array(SUDOKU_BOARD_LENGTH); 
+        quadrantBoard = new Array(SUDOKU_BOARD_LENGTH);
         for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
             //add columns to boards
@@ -65,40 +68,21 @@ $(document).ready(function()
                 quadrantBoard[x][y] = i; //populate quadrant board
             }
         }
-        //TODO: Validate user input
-        //console.log($.validateSudokuConstraint(puzzleBoard)); //check if current board is valid
         
-        var continuousLoop = true;
-        while(continuousLoop)
+        $.solve();
+        $.displayResults(puzzleBoard); 
+    });
+});
+
+(function($)
+{
+    $.solve = function()
+    {
+        //Apply sudoku techniques here if puzzle board has empty spaces
+        var madeProgress = false; //Placement of tile or removal of markers is considered making progress
+        while(!$.isPuzzleBoardFilled(puzzleBoard))
         {
-            var madeProgress = false; //Placement of tile or removal of markers is considered making progress
-            
-            //Iterate entire puzzle board
-            for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
-            {
-                for(j = 0; j < SUDOKU_BOARD_LENGTH; j++)
-                {
-                    var coordinateValue = puzzleBoard[i][j];
-                    var coordinateQuadrant = quadrantBoard[i][j]; 
-                   
-                    if(coordinateValue != 0 && $.doesCoordinateHaveMarkers(markerBoard[i][j]))
-                    {
-                        madeProgress = true;
-                        for(k = 0; k < SUDOKU_BOARD_LENGTH; k++)
-                        {
-                            markerBoard[i][j][k] = 0; //remove markers from self 
-                            markerBoard[k][j][coordinateValue - 1] = 0; //remove markers from row
-                            markerBoard[i][k][coordinateValue - 1] = 0; //remove markers from column
-                            x = (k % 3) + (3 * (coordinateQuadrant % 3)); 
-                            y = Math.floor(k / 3) + (3 * Math.floor(coordinateQuadrant / 3));
-                            markerBoard[x][y][coordinateValue - 1] = 0; //remove markers from quadrant
-                            //console.log(k + ", " + j);
-                            //console.log(i + ", " + k);
-                            //console.log(x + ", " + y);
-                        }
-                    }
-                }
-            }
+            madeProgress = $.sudokuConditionsMarkerEliminator(puzzleBoard, markerBoard, quadrantBoard); //Eliminate markers by sudoku game rules
             madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
             madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
             madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(markerBoard,quadrantBoard); //Inspect each row to find vertical markers isolated in a single quadrant in a region of three vertical, and eliminate marker numbers in current quadrant except the vertical markers  
@@ -118,21 +102,278 @@ $(document).ready(function()
             madeProgress = $.lastNumberMarkerInRowPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in row
             
             if(!madeProgress)
-            {
-                 $.enumerateAllPossibilities(markerBoard);//calculate the cartesian product of the left of markers
-                 break;    
-            }
-               
+                 break;           
         }
+        
+        //Check if the puzzle board is solved
+        if($.isPuzzleBoardFilled(puzzleBoard) && $.validateSudokuConstraint(puzzleBoard))
+            return true;
+      
+        //Check if there are empty spaces on puzzle board with no possible values left => unsolvable case
+        if($.checkCoordinateWithNoPossibleValues(puzzleBoard, markerBoard))
+            return false;
+        
+        //Iterate if there are coordinates with possible values left to choose from
+        while($.moreMarkersLeft(markerBoard))
+        {
+            //Find coordinate with the least number of choices
+            var coordinate = $.findCoordinateWithLeastPossibleChoices(puzzleBoard,markerBoard);
+            var coordX = coordinate.x;
+            var coordY = coordinate.y;
+            
+            if(coordX == -1 && coordY == -1)
+                return false; //unsolvable case
+            
+            //get guess number from markerBoard and eliminate from marker board
+            var guessNumber = $.getGuessNumber(markerBoard, coordinate);
+            
+            //deep copy of boards; object references in list object are differnt from original including the list object itself 
+            var puzzleBoardDeepCopy = jQuery.extend(true, [], puzzleBoard);
+            var markerBoardDeepCopy = jQuery.extend(true, [], markerBoard);
+            
+            //Fill the guessNumber onto the puzzle board
+            puzzleBoard[coordX][coordY] = guessNumber;
+            
+            //recursively call the this function 
+            if($.solve())
+                return true;
+            
+            //GuessNumber is incorrect at this point; Backtrack to previous state of the boards
+            puzzleBoard = puzzleBoardDeepCopy;
+            markerBoard = markerBoardDeepCopy;  
+        }
+        
+        return false;
+    }
+    
+    /*
+     * Get the first non-zero number from markerboard at the given coordinate.
+     * Eliminate the chosen number from marker board.
+     * @param - markerBoard[3D Array] contains the set of marker list for each coordinate
+     * @param - coordinate [Object with x and y properties] position of the coordinate
+     * @return - number from marker board
+     */
+    $.getGuessNumber = function(markerBoard, coordinate)
+    {
+        for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+        {
+            var guessNumber = markerBoard[coordinate.x][coordinate.y][k];
+            if(guessNumber != 0)
+            {
+                markerBoard[coordinate.x][coordinate.y][k] = 0;
+                return guessNumber;
+            }
+        }
+        
+        console.log("Error: Should not reach here.");
+        return 0;
+    }
+    
+    /*
+     * Finds the coordinate with the least possible choices
+     * @param - puzzleBoard [2D Array]
+     * @param - markerBoard [3D Array]
+     * @return - coordinate object {'x': <value>, 'y': <value>}; otherwise {'x':-1, 'y': -1} for invalid case
+     */
+    $.findCoordinateWithLeastPossibleChoices = function(puzzleBoard, markerBoard)
+    {
+        var coordinate = {'x': -1, 'y': -1};
+        var leastMarkerCount = 100;
+    
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var coordinateValue = puzzleBoard[i][j];
+                
+                //Check only coordinates that do not have a value
+                if(coordinateValue == 0)
+                {
+                    var markerCount = 0;
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[i][j][k];
+                        if(markerValue != 0)
+                             markerCount++; //increment non-zero markers    
+                    }
+                    
+                    
+                    if(markerCount != 0 && markerCount < leastMarkerCount)
+                    {
+                         leastMarkerCount = markerCount; //new lowest value
+                         //keep track of coordinate position
+                         coordinate.x = i; 
+                         coordinate.y = j;
+                    }
+                }
+            }
+        }
+        
+        return coordinate;
+    }
+    
+    /*
+     * Determines if there are any more markers left.
+     * @param - markerBoard [3D Array]
+     * @return - true if there are markers left; otherwise false
+     */
+    $.moreMarkersLeft = function (markerBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                {
+                    var markerValue = markerBoard[i][j][k];
+                    if(markerValue != 0)
+                        return true;
+                }  
+            }
+        }
+        
+        return false;
+    }
+    
+    /*
+     * Determines if there are any coordinates that is empty and has no possible value left.
+     * If yes, this determines that the puzzle is unsolvable.
+     * @param - puzzleBoard [2D Array]
+     * @param - markerBoard [3D Array]
+     * @return - true if puzzle is still solvable; false otherwise 
+     */
+    $.checkCoordinateWithNoPossibleValues = function(puzzleBoard, markerBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var coordinateValue = puzzleBoard[i][j];
+                
+                //Check only coordinates that do not have a value
+                if(coordinateValue == 0)
+                {
+                    var hasPossibleValuesLeft = false;
+                    
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        var markerValue = markerBoard[i][j][k];
+                        if(markerValue != 0)
+                        {
+                             hasPossibleValuesLeft = true;
+                             break;
+                        }
+                    }
+                    
+                    //Found a coordinate that is empty and has no possible values left
+                    if(!hasPossibleValuesLeft)
+                        return true;
+                }
+            }
+        }
+       
+        return false;
+    }
+    
+    /*
+     * Determines if the puzzle board is completed.
+     * @param - puzzleBoard [2D Array]
+     * @return - true if puzzle is completed; false otherwise.
+     */
+    $.isPuzzleBoardFilled = function(puzzleBoard)
+    {
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                if(puzzleBoard[i][j] == 0)
+                    return false;
+            }
+        }
+        return true;
+    }
+    
+    /*
+     *Recursively square each element in array.
+     *@param list
+     *@param length
+     *[Testing Method]
+     */
+    $.recursiveSquaring = function(list, length)
+    {
+        console.log(length);
+        if(length == 0)
+            return list;
+        
+        else
+        {
+            list[length] = list[length] * list[length];
+            var newList = $.recursiveSquaring(list, length - 1);
+            console.log(length);
+            return newList;
+        } 
+    }
+    
+    /*
+     * Looks at the current board and eliminates the markers
+     * by applying sudoku row, column, and quadrant number 
+     * uniqueness conditions.
+     * @param - puzzleBoard [2D Array] contains the current puzzle
+     * @param - markerBoard [3D Array] contains the the possible values for each coordinate
+     * @param - quadrantBoard [2D Array] conatins the quadrant indicator for each coordinate
+     * @return - true if any marker has been eliminated; false otherwise
+     */
+    $.sudokuConditionsMarkerEliminator = function(puzzleBoard, markerBoard, quadrantBoard)
+    {
+        var madeProgress = false; //Placement of tile or removal of markers is considered making progress
+            
+        //Iterate entire puzzle board
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        {
+            for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
+            {
+                var coordinateValue = puzzleBoard[i][j];
+                var coordinateQuadrant = quadrantBoard[i][j]; 
 
-        //$.printPuzzleBoard(puzzleBoard);
-        console.log($.validateSudokuConstraint(puzzleBoard));
-        $.displayResults(puzzleBoard);
-    });
-});
-
-(function($)
-{
+                if(coordinateValue != 0)
+                {
+                    for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
+                    {
+                        if(markerBoard[i][j][k] != 0)
+                        {
+                            markerBoard[i][j][k] = 0; //remove markers from self
+                            madeProgress = true;
+                        }
+                        
+                        if(markerBoard[k][j][coordinateValue - 1] != 0)
+                        {
+                            markerBoard[k][j][coordinateValue - 1] = 0; //remove markers from row
+                            madeProgress = true;
+                        }
+                        
+                        if(markerBoard[i][k][coordinateValue - 1] != 0)
+                        {
+                            markerBoard[i][k][coordinateValue - 1] = 0; //remove markers from column
+                            madeProgress = true;
+                        }
+                        
+                        var x = (k % 3) + (3 * (coordinateQuadrant % 3)); 
+                        var y = Math.floor(k / 3) + (3 * Math.floor(coordinateQuadrant / 3));
+                        
+                        if(markerBoard[x][y][coordinateValue - 1] != 0)
+                        {
+                            markerBoard[x][y][coordinateValue - 1] = 0; //remove markers from quadrant
+                            madeProgress = true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return madeProgress;
+    }
+    
+    
     /*
      * Calculates the cartesian product of the remaining markers.
      * @param - markerBoard [3D Array]
@@ -156,8 +397,8 @@ $(document).ready(function()
             $.removeElementsWithValue(markerBoard[8][0],0),$.removeElementsWithValue(markerBoard[8][1],0),$.removeElementsWithValue(markerBoard[8][2],0),$.removeElementsWithValue(markerBoard[8][3],0),$.removeElementsWithValue(markerBoard[8][4],0),$.removeElementsWithValue(markerBoard[8][5],0),$.removeElementsWithValue(markerBoard[8][6],0),$.removeElementsWithValue(markerBoard[8][7],0),$.removeElementsWithValue(markerBoard[8][8],0)
         );
 
-        //if(cartProd != null)
-        console.log(cartProd);
+        if(cartProd != null)
+            console.log(cartProd);
     }
     
     /*
@@ -1757,13 +1998,20 @@ $(document).ready(function()
             
             for(var z = 0; z < markerCounterLength; z++)
             {
+                //Exclude zero value
+                if(z == 0)
+                {
+                     markerCounter[z] = 0;
+                     continue;
+                }
+                
                 //find the isolated marker in row; then place number
                 if(markerCounter[z] == 1)
                 {
                     var coordX = markerCoordinateTracker[z].x;
                     var coordY = markerCoordinateTracker[z].y;
                     puzzleBoard[coordX][coordY] = z; //place number
-                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    //console.log("(" + coordX + ", " + coordY + ") = " + z);
                     madeProgress = true;
                 }
                 
@@ -1809,13 +2057,20 @@ $(document).ready(function()
             
             for(var z = 0; z < markerCounterLength; z++)
             {
+                //Exclude zero value
+                if(z == 0)
+                {
+                     markerCounter[z] = 0;
+                     continue;
+                }
+                
                 //find the isolated marker in column; then place number
                 if(markerCounter[z] == 1)
                 {
                     var coordX = markerCoordinateTracker[z].x;
                     var coordY = markerCoordinateTracker[z].y;
                     puzzleBoard[coordX][coordY] = z; //place number
-                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    //console.log("(" + coordX + ", " + coordY + ") = " + z);
                     madeProgress = true;
                 }
                 
@@ -1864,13 +2119,20 @@ $(document).ready(function()
             
             for(var z = 0; z < markerCounterLength; z++)
             {
+                //Exclude zero value
+                if(z == 0)
+                {
+                     markerCounter[z] = 0;
+                     continue;
+                }
+                
                 //find the isolated marker in quadrant; then place number
                 if(markerCounter[z] == 1)
                 {
                     var coordX = markerCoordinateTracker[z].x;
                     var coordY = markerCoordinateTracker[z].y;
                     puzzleBoard[coordX][coordY] = z; //place number
-                    console.log("(" + coordX + ", " + coordY + ") = " + z);
+                    //console.log("(" + coordX + ", " + coordY + ") = " + z);
                     madeProgress = true;
                 }
                 
@@ -1925,7 +2187,7 @@ $(document).ready(function()
                 
                 if(isLastNumber)
                 {
-                    console.log("(" + i + ", " + j + ") = " + markNumber);
+                    //console.log("(" + i + ", " + j + ") = " + markNumber);
                     puzzleBoard[i][j] = markNumber;
                     madeProgress = true;
                 }
