@@ -5,7 +5,7 @@
  * Marker Elimination techniques
  *  -Sudoku Uniqueness Constraints
  *  -Naked Pairs
- *  -Point Pairs/Triples
+ *  -Pointing Pairs/Triples
  *  -Hidden Pairs/Triples
  *  -Bow line Reduction
  *  -Bowman Bingo
@@ -364,7 +364,7 @@ $(document).ready(function()
      *      -Pointing Triples 
      *      -Line Box Reduction
      *      -Naked Pairs
-     *      -Naked Triples
+     *      -Hidden Naked Triples
      *      -Hidden Naked Pairs
      * Then place number in coordinate if one marker exists or if there is only
      * one marker number left in a specific region (quadrant, row, or column). 
