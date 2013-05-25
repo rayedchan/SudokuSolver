@@ -57,6 +57,18 @@ $(document).ready(function()
         $.solve(); //solves the puzzle board 
         $.displayResults(); //display the puzzle board on the webpage 
     });
+    
+    //Clear board
+    $('#clear').click(function()
+    {
+        for(var i = 1; i <= 81; i++)
+        {
+            var coordinate = $('#'+ i);
+            coordinate.val(''); //reset value
+            coordinate.removeAttr('readonly');
+            coordinate.removeClass('elementAdded');
+        }
+    });
 });
 
 (function($)

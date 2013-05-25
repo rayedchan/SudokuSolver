@@ -38,6 +38,11 @@
             {
                 color:blue;
             }
+            
+            .invalidData
+            {
+                border: 1px solid red;
+            }
         </style>
         <title>Sudoku Solver</title>
     </head>
@@ -147,7 +152,13 @@
         </table>
         
         <form id="puzzleForm">
-            <input type="button" id="submit" value="Solve"><br />
+            <table>
+                <tr>
+                    <td><input type="button" id="submit" value="Solve"></td>
+                    <td><input type="button" id="clear" value="Clear"></td>
+                </tr>
+            </table>
         </form>
+        
     </body>
 </html>
