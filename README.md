@@ -53,4 +53,4 @@ For marker elimination:
   
 For number placement:  
 * Last marker number
-* Last Marker Number in Region Placement (Quadrant, Row, Column)  
+* Last marker number in region (Quadrant, Row, Column)  
