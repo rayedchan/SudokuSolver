@@ -18,8 +18,7 @@ Sudoku Coordinate System 9x9 Board
      ------|-------|-------    
     G      |       |    
     H  VII | VIII  |  IX    
-    I      |       |    
-     
+    I      |       |        
    [Left - Right] = x coordinate  rows     
    [Up - Down] = y coordinate columns    
 The Sudoku board is made of 81 coordinate points (squares). 
