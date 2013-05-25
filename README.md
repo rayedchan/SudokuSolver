@@ -1,10 +1,10 @@
-SudokuSolver
-============
-9x9 Sudoku Board  
-This program attempts to solve the puzzle using human-logic.  
+Sudoku Solver
+============ 
+This program attempts to solve a 9x9 Sudoku Board puzzle using human-logic.  
 Demo: http://rayedchan.github.io/SudokuSolver/
 
-Background  
+Background
+============
 Sudoku Coordinate System 9x9 Board  
   
       A B C  D E F   G H I     
@@ -22,7 +22,14 @@ Sudoku Coordinate System 9x9 Board
   
    [Left - Right] = x coordinate  rows  
    [Up - Down] = y coordinate columns  
-   The sudoku board is made of 81 coordinate points.  
+The Sudoku board is made of 81 coordinate points (squares).  
+The board is divided into nine quadrants. 
+Each quadrant contains 9 coordinate points (3 x 3).  
+ 
+Sudoku Game Conditions (Sudoku Uniqueness Constraints)
+1. Each quadrant must have [1-9] numbers. No duplicates.
+2. Each row must have [1-9] numbers. No duplicates.
+3. Each column musr have [1-9] numbers. No duplicates.
    
    
 Will update soon ...
