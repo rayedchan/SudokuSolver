@@ -45,3 +45,12 @@ For marker elimination:
 * Sudoku Uniqueness Constraints 
 * Pointing Pair
 * Pointing Triple 
+* Naked Pair
+* Hidden Naked Pair
+* Hidden Naked Triple
+* Box Line Reduction
+* Bowman's Bingo
+  
+For number placement:  
+* Last marker number
+* Last Marker Number in Region Placement (Quadrant, Row, Column)  
