@@ -54,11 +54,16 @@ $(document).ready(function()
     $('#submit').click(function()
     {
         $.initializeBoards(); //initialize the boards and populates the puzzle board
-        $.solve(); //solves the puzzle board 
-        $.displayResults(); //display the puzzle board on the webpage 
+        
+        //Attempt solving puzzle if and only if puzzle is valid
+        if($.validateUserInput(puzzleBoard))
+        {
+            $.solve(); //solves the puzzle board 
+            $.displayResults(); //display the puzzle board on the webpage 
+        }
     });
     
-    //Clear board
+    //Clear board; triggers whenever the clear button is clicked
     $('#clear').click(function()
     {
         for(var i = 1; i <= 81; i++)
@@ -67,12 +72,244 @@ $(document).ready(function()
             coordinate.val(''); //reset value
             coordinate.removeAttr('readonly');
             coordinate.removeClass('elementAdded');
+            coordinate.removeClass('invalidData');
+            coordinate.removeClass('invalidRow');
+            coordinate.removeClass('invalidColumn');
+            coordinate.removeClass('invalidQuadrant');
         }
+    });
+    
+    //Front-end validation; Event is triggers whenever user enters something in the input boxes
+    $('.coordinate').keyup(function()
+    {
+         $.quadrantValidationFrontEnd();
+         $.rowValidationFrontEnd();
+         $.columnValidationFrontEnd();
     });
 });
 
 (function($)
 {
+    /*
+     * Front-end quadrant validation.
+     * Red-line border invalid row and red-text for numbers that are in violation
+     */
+    $.quadrantValidationFrontEnd = function()
+    {
+        var numberCounter = [0,0,0,0,0,0,0,0,0,0];
+        var coordinateId = 0;
+        var isDataValidBool = true;
+        
+        for(var i = 0; i < 9; i++)
+        {
+            for(var j = 0; j < 9; j++)
+            {
+                 coordinateId = Math.floor(j / 3) * 9 + (3 * i) + (Math.floor(i / 3)) * 18 + (j % 3) + 1;
+                 var coordinate = $('#'+coordinateId);
+                 var inputValue = coordinate.val();
+                 
+                 if(inputValue == ' ' || inputValue == '' || inputValue == '0' || inputValue == 0)
+                    continue; 
+                    
+                 //Validate the data input; Numbers [0-9] only.
+                 var isDataValid = $.validateData(inputValue);
+                 if(!isDataValid)
+                 {
+                    coordinate.addClass('invalidData');
+                    continue;
+                 }
+                 
+                 numberCounter[inputValue]++;
+                 if(numberCounter[inputValue] > 1)
+                 {
+                    isDataValidBool = false; 
+                    //Red-line border invalid row and red-text for numbers that are in violation
+                    for(var k = 0; k < 9; k++)
+                    {
+                        var invalidQuadrantNum =  Math.floor(k / 3) * 9 + (3 * i) + (Math.floor(i / 3)) * 18 + (k % 3) + 1;
+                        var currentCoordinate = $('#'+invalidQuadrantNum);
+                        var currentCoordinateValue = currentCoordinate.val();
+                        //currentCoordinate.addClass('violateQuadrantConstraint');
+                       
+                        //indicate to user which numbers are in violation
+                        if(currentCoordinateValue == inputValue)
+                           currentCoordinate.addClass('invalidQuadrant');
+                    }
+                 }
+            }
+            $.resetCounterArray(numberCounter);
+        }
+        
+        if(isDataValidBool)
+        {
+            for(var z = 1; z <= 81; z++)
+            {
+                var currentValidCoordinate = $('#'+z);
+                //currentValidCoordinate.removeClass('violateQuadrantConstraint');
+                currentValidCoordinate.removeClass('invalidQuadrant');
+            }
+        }
+        
+        return isDataValidBool;
+    }
+    
+    /*
+     * Front-end row validation.
+     * Red-line border invalid row and red-text for numbers that are in violation
+     */
+    $.rowValidationFrontEnd = function()
+    {
+        var numberCounter = [0,0,0,0,0,0,0,0,0,0];
+        var coordinateId = 0;
+        var isDataValidBool = true;
+        
+        for(var i = 0; i < 9; i++)
+        {
+            for(var j = 0; j < 9; j++)
+            {
+                 coordinateId++;
+                 var coordinate = $('#'+coordinateId);
+                 var inputValue = coordinate.val();
+                 
+                 if(inputValue == ' ' || inputValue == '' || inputValue == '0' || inputValue == 0)
+                    continue; 
+                    
+                 //Validate the data input; Numbers [0-9] only.
+                 var isDataValid = $.validateData(inputValue);
+                 if(!isDataValid)
+                 {
+                    coordinate.addClass('invalidData');
+                    continue;
+                 }
+                 
+                 numberCounter[inputValue]++;
+                 if(numberCounter[inputValue] > 1)
+                 {
+                    isDataValidBool = false; 
+                    //Red-line border invalid row and red-text for numbers that are in violation
+                    for(var k = 1; k < 10; k++)
+                    {
+                        //var invalidCoordinateNum = 9*k + i + 1;
+                        var invalidRowNum = 9*i + k;
+                        var currentCoordinate = $('#'+invalidRowNum);
+                        var currentCoordinateValue = currentCoordinate.val();
+                       // currentCoordinate.addClass('violateRowConstraint');
+                       
+                        //indicate to user which numbers are in violation
+                        if(currentCoordinateValue == inputValue)
+                           currentCoordinate.addClass('invalidRow');
+                    }
+                 } 
+            }
+            $.resetCounterArray(numberCounter);
+        }
+        
+        if(isDataValidBool)
+        {
+            for(var z = 1; z <= 81; z++)
+            {
+                var currentValidCoordinate = $('#'+z);
+                //currentValidCoordinate.removeClass('violateRowConstraint');
+                currentValidCoordinate.removeClass('invalidRow');
+            }
+        }
+    }
+    
+    /*
+     * Front-end column validation.
+     * Red-line border invalid row and red-text for numbers that are in violation
+     */
+    $.columnValidationFrontEnd = function()
+    {
+        var numberCounter = [0,0,0,0,0,0,0,0,0,0];
+        var coordinateId = 0;
+        var isDataValidBool = true;
+        
+        for(var i = 0; i < 9; i++)
+        {
+            for(var j = 0; j < 9; j++)
+            {
+                 coordinateId = 9*j + (i + 1);
+                 var coordinate = $('#'+coordinateId);
+                 var inputValue = coordinate.val();
+                 
+                 if(inputValue == ' ' || inputValue == '' || inputValue == '0' || inputValue == 0)
+                    continue; 
+                    
+                 //Validate the data input; Numbers [0-9] only.
+                 var isDataValid = $.validateData(inputValue);
+                 if(!isDataValid)
+                 {
+                    coordinate.addClass('invalidData');
+                    continue;
+                 }
+                 
+                 numberCounter[inputValue]++;
+                 if(numberCounter[inputValue] > 1)
+                 {
+                    isDataValidBool = false; 
+                    //Red-line border invalid row and red-text for numbers that are in violation
+                    for(var k = 0; k < 9; k++)
+                    {
+                        var invalidColumnNum = 9*k + i + 1;
+                        var currentCoordinate = $('#'+invalidColumnNum);
+                        var currentCoordinateValue = currentCoordinate.val();
+                        //currentCoordinate.addClass('violateColumnConstraint');
+                       
+                        //indicate to user which numbers are in violation
+                        if(currentCoordinateValue == inputValue)
+                           currentCoordinate.addClass('invalidColumn');
+                    }
+                 } 
+            }
+            $.resetCounterArray(numberCounter);
+        }
+        
+        if(isDataValidBool)
+        {
+            for(var z = 1; z <= 81; z++)
+            {
+                var currentValidCoordinate = $('#'+z);
+                //currentValidCoordinate.removeClass('violateColumnConstraint');
+                currentValidCoordinate.removeClass('invalidColumn');
+            }
+        }
+    }
+    
+    /*
+     * Validates user input.
+     * @param puzzleBoard [2D Array] the sudoku game board
+     */
+    $.validateUserInput = function(puzzleBoard)
+    {
+        //Validate user input
+        for(var i = 1; i <= 81; i++)
+        {
+            var coordinate = $('#'+ i);//get DOM coordinate element
+            var inputValue = coordinate.val();
+            
+            //Program will treat these values as zeroes
+            if(inputValue == ' ' || inputValue == '')
+               continue; 
+            
+            //Validate the data input; Numbers [0-9] only.
+            var isDataValid = $.validateData(inputValue);
+            if(!isDataValid)
+            {
+                alert('Input must be a number, space, or null.');
+                return false;
+            }
+            
+            if(!$.validateSudokuConstraint(puzzleBoard))
+            {
+                alert('Please provide a valid Sudoku puzzle.');
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
     /*
      * Initialize, construct, and populate the boards.
      * puzzleBoard [2D Array 9x9] - The actual sudoku game board.
@@ -2221,15 +2458,15 @@ $(document).ready(function()
     }
     
     /*
-     * Validate the data of user input for a row.
-     * Length of row must be nine. Only accept numbers. 
-     * @param - rowArray [String] An array of characters 
+     * Validate the data of user for a single coordinate.
+     * Only accept numbers. 
+     * @param - number 
      * @return - true if validation passes; false otherwise
      */
-    $.validateData = function(rowArray)
+    $.validateData = function(number)
     {
-        var digitRegex = new RegExp(/^[0-9]{9}$/);
-        return (rowArray.match(digitRegex) == null)? false : true;    
+        var digitRegex = new RegExp(/^[0-9]{1}$/);
+        return (number.match(digitRegex) == null)? false : true;    
     }
     
     /*
