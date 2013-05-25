@@ -27,9 +27,9 @@ The board is divided into nine quadrants.
 Each quadrant contains 9 coordinate points (3 x 3).  
  
 Sudoku Game Conditions (Sudoku Uniqueness Constraints)
-1. Each quadrant must have [1-9] numbers. No duplicates.
-2. Each row must have [1-9] numbers. No duplicates.
-3. Each column musr have [1-9] numbers. No duplicates.
+* 1. Each quadrant must have [1-9] numbers. No duplicates.
+* 2. Each row must have [1-9] numbers. No duplicates.
+* 3. Each column musr have [1-9] numbers. No duplicates.
    
    
 Will update soon ...
