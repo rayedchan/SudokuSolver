@@ -1,4 +1,20 @@
-/* Sudoku Coordinate System 9x9 Board
+/* @author: rayedchan
+ * This program logically solves the sudoku puzzle. A marker board records
+ * all the possible value a coordinate (square) may contain.
+ * Here are the sudoku strategies implemented:
+ * Marker Elimination techniques
+ *  -Sudoku Uniqueness Constraints
+ *  -Naked Pairs
+ *  -Point Pairs/Triples
+ *  -Hidden Pairs/Triples
+ *  -Bow line Reduction
+ *  -Bowman Bingo
+ *  
+ * Number Placement techniques
+ *  -Last Marker Number 
+ *  -Last Marker Number in Region Placement (Quadrant, Row, Column)
+ *  
+ * Sudoku Coordinate System 9x9 Board
  *  
  *     A B C  D E F   G H I       
  *   A      |       |
@@ -15,14 +31,21 @@
  *
  *   [Left - Right] = x coordinate  rows 
  *   [Up - Down] = y coordinate columns
- *   The sudoku board is made of 81 coordinate points. 
+ *   The sudoku board is made of 81 coordinate points (squares).
+ *   The board is divided into nine quadrants. Each quadrant contains
+ *   9 coordinate points (3 x 3).
+ *   
+ *   Sudoku Game Conditions (Sudoku Uniqueness Constraints)
+ *   1. Each quadrant must have [1-9] numbers. No duplicates.
+ *   2. Each row must have [1-9] numbers. No duplicates.
+ *   3. Each column musr have [1-9] numbers. No duplicates.
+ *   
  */
 
-
-var SUDOKU_BOARD_LENGTH = 9;
-var puzzleBoard;
-var markerBoard;
-var quadrantBoard;
+var SUDOKU_BOARD_LENGTH = 9; //Length of puzzle board
+var puzzleBoard; //[2D Array 9x9] the actual sudoku puzzle board to solve
+var markerBoard; //[3D Array 9x9x9] contain the possible values for each square; Utilize this to solve puzzle.  
+var quadrantBoard; //[2D Array 9x9] contain the quadrant number of each coordinate 
 
 //Load DOM and ready to be manipulated.
 $(document).ready(function()
@@ -30,30 +53,292 @@ $(document).ready(function()
     //Process form whenever submit button is clicked
     $('#submit').click(function()
     {
-        /*
-         * Initialize boards
-         * puzzleBoard [2D Array 9x9] - The actual sudoku game board.
-         * markerBoard [3D Array 9x9x9] - Stores marker list for each coordinate point.
-         *      The marker list represents all the possible numbers that can be place in that coordinate.
-         * quadrantBoard [2D Array 9x9] - used to determine the quadrant for a coordinate
-         */
+        $.initializeBoards(); //initialize the boards and populates the puzzle board
+        
+        //Attempt solving puzzle if and only if puzzle is valid
+        if($.validateUserInput(puzzleBoard))
+        {
+            $.solve(); //solves the puzzle board 
+            $.displayResults(); //display the puzzle board on the webpage 
+        }
+    });
+    
+    //Clear board; triggers whenever the clear button is clicked
+    $('#clear').click(function()
+    {
+        for(var i = 1; i <= 81; i++)
+        {
+            var coordinate = $('#'+ i);
+            coordinate.val(''); //reset value
+            coordinate.removeAttr('readonly');
+            coordinate.removeClass('elementAdded');
+            coordinate.removeClass('invalidData');
+            coordinate.removeClass('invalidRow');
+            coordinate.removeClass('invalidColumn');
+            coordinate.removeClass('invalidQuadrant');
+        }
+    });
+    
+    //Front-end validation; Event is triggers whenever user enters something in the input boxes
+    $('.coordinate').keyup(function()
+    {
+         $.quadrantValidationFrontEnd();
+         $.rowValidationFrontEnd();
+         $.columnValidationFrontEnd();
+    });
+});
+
+(function($)
+{
+    /*
+     * Front-end quadrant validation.
+     * Red-line border invalid row and red-text for numbers that are in violation
+     */
+    $.quadrantValidationFrontEnd = function()
+    {
+        var numberCounter = [0,0,0,0,0,0,0,0,0,0];
+        var coordinateId = 0;
+        var isDataValidBool = true;
+        
+        for(var i = 0; i < 9; i++)
+        {
+            for(var j = 0; j < 9; j++)
+            {
+                 coordinateId = Math.floor(j / 3) * 9 + (3 * i) + (Math.floor(i / 3)) * 18 + (j % 3) + 1;
+                 var coordinate = $('#'+coordinateId);
+                 var inputValue = coordinate.val();
+                 
+                 if(inputValue == ' ' || inputValue == '' || inputValue == '0' || inputValue == 0)
+                    continue; 
+                    
+                 //Validate the data input; Numbers [0-9] only.
+                 var isDataValid = $.validateData(inputValue);
+                 if(!isDataValid)
+                 {
+                    coordinate.addClass('invalidData');
+                    continue;
+                 }
+                 
+                 numberCounter[inputValue]++;
+                 if(numberCounter[inputValue] > 1)
+                 {
+                    isDataValidBool = false; 
+                    //Red-line border invalid row and red-text for numbers that are in violation
+                    for(var k = 0; k < 9; k++)
+                    {
+                        var invalidQuadrantNum =  Math.floor(k / 3) * 9 + (3 * i) + (Math.floor(i / 3)) * 18 + (k % 3) + 1;
+                        var currentCoordinate = $('#'+invalidQuadrantNum);
+                        var currentCoordinateValue = currentCoordinate.val();
+                        //currentCoordinate.addClass('violateQuadrantConstraint');
+                       
+                        //indicate to user which numbers are in violation
+                        if(currentCoordinateValue == inputValue)
+                           currentCoordinate.addClass('invalidQuadrant');
+                    }
+                 }
+            }
+            $.resetCounterArray(numberCounter);
+        }
+        
+        if(isDataValidBool)
+        {
+            for(var z = 1; z <= 81; z++)
+            {
+                var currentValidCoordinate = $('#'+z);
+                //currentValidCoordinate.removeClass('violateQuadrantConstraint');
+                currentValidCoordinate.removeClass('invalidQuadrant');
+            }
+        }
+        
+        return isDataValidBool;
+    }
+    
+    /*
+     * Front-end row validation.
+     * Red-line border invalid row and red-text for numbers that are in violation
+     */
+    $.rowValidationFrontEnd = function()
+    {
+        var numberCounter = [0,0,0,0,0,0,0,0,0,0];
+        var coordinateId = 0;
+        var isDataValidBool = true;
+        
+        for(var i = 0; i < 9; i++)
+        {
+            for(var j = 0; j < 9; j++)
+            {
+                 coordinateId++;
+                 var coordinate = $('#'+coordinateId);
+                 var inputValue = coordinate.val();
+                 
+                 if(inputValue == ' ' || inputValue == '' || inputValue == '0' || inputValue == 0)
+                    continue; 
+                    
+                 //Validate the data input; Numbers [0-9] only.
+                 var isDataValid = $.validateData(inputValue);
+                 if(!isDataValid)
+                 {
+                    coordinate.addClass('invalidData');
+                    continue;
+                 }
+                 
+                 numberCounter[inputValue]++;
+                 if(numberCounter[inputValue] > 1)
+                 {
+                    isDataValidBool = false; 
+                    //Red-line border invalid row and red-text for numbers that are in violation
+                    for(var k = 1; k < 10; k++)
+                    {
+                        //var invalidCoordinateNum = 9*k + i + 1;
+                        var invalidRowNum = 9*i + k;
+                        var currentCoordinate = $('#'+invalidRowNum);
+                        var currentCoordinateValue = currentCoordinate.val();
+                       // currentCoordinate.addClass('violateRowConstraint');
+                       
+                        //indicate to user which numbers are in violation
+                        if(currentCoordinateValue == inputValue)
+                           currentCoordinate.addClass('invalidRow');
+                    }
+                 } 
+            }
+            $.resetCounterArray(numberCounter);
+        }
+        
+        if(isDataValidBool)
+        {
+            for(var z = 1; z <= 81; z++)
+            {
+                var currentValidCoordinate = $('#'+z);
+                //currentValidCoordinate.removeClass('violateRowConstraint');
+                currentValidCoordinate.removeClass('invalidRow');
+            }
+        }
+    }
+    
+    /*
+     * Front-end column validation.
+     * Red-line border invalid row and red-text for numbers that are in violation
+     */
+    $.columnValidationFrontEnd = function()
+    {
+        var numberCounter = [0,0,0,0,0,0,0,0,0,0];
+        var coordinateId = 0;
+        var isDataValidBool = true;
+        
+        for(var i = 0; i < 9; i++)
+        {
+            for(var j = 0; j < 9; j++)
+            {
+                 coordinateId = 9*j + (i + 1);
+                 var coordinate = $('#'+coordinateId);
+                 var inputValue = coordinate.val();
+                 
+                 if(inputValue == ' ' || inputValue == '' || inputValue == '0' || inputValue == 0)
+                    continue; 
+                    
+                 //Validate the data input; Numbers [0-9] only.
+                 var isDataValid = $.validateData(inputValue);
+                 if(!isDataValid)
+                 {
+                    coordinate.addClass('invalidData');
+                    continue;
+                 }
+                 
+                 numberCounter[inputValue]++;
+                 if(numberCounter[inputValue] > 1)
+                 {
+                    isDataValidBool = false; 
+                    //Red-line border invalid row and red-text for numbers that are in violation
+                    for(var k = 0; k < 9; k++)
+                    {
+                        var invalidColumnNum = 9*k + i + 1;
+                        var currentCoordinate = $('#'+invalidColumnNum);
+                        var currentCoordinateValue = currentCoordinate.val();
+                        //currentCoordinate.addClass('violateColumnConstraint');
+                       
+                        //indicate to user which numbers are in violation
+                        if(currentCoordinateValue == inputValue)
+                           currentCoordinate.addClass('invalidColumn');
+                    }
+                 } 
+            }
+            $.resetCounterArray(numberCounter);
+        }
+        
+        if(isDataValidBool)
+        {
+            for(var z = 1; z <= 81; z++)
+            {
+                var currentValidCoordinate = $('#'+z);
+                //currentValidCoordinate.removeClass('violateColumnConstraint');
+                currentValidCoordinate.removeClass('invalidColumn');
+            }
+        }
+    }
+    
+    /*
+     * Validates user input.
+     * @param puzzleBoard [2D Array] the sudoku game board
+     */
+    $.validateUserInput = function(puzzleBoard)
+    {
+        //Validate user input
+        for(var i = 1; i <= 81; i++)
+        {
+            var coordinate = $('#'+ i);//get DOM coordinate element
+            var inputValue = coordinate.val();
+            
+            //Program will treat these values as zeroes
+            if(inputValue == ' ' || inputValue == '')
+               continue; 
+            
+            //Validate the data input; Numbers [0-9] only.
+            var isDataValid = $.validateData(inputValue);
+            if(!isDataValid)
+            {
+                alert('Input must be a number, space, or null.');
+                return false;
+            }
+            
+            if(!$.validateSudokuConstraint(puzzleBoard))
+            {
+                alert('Please provide a valid Sudoku puzzle.');
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /*
+     * Initialize, construct, and populate the boards.
+     * puzzleBoard [2D Array 9x9] - The actual sudoku game board.
+     * markerBoard [3D Array 9x9x9] - Stores marker list for each coordinate point.
+     *      The marker list represents all the possible numbers that can be place in that coordinate.
+     * quadrantBoard [2D Array 9x9] - used to determine the quadrant for a coordinate
+     */
+    $.initializeBoards = function()
+    {
+        //Construct the boards; Start off with an array
         puzzleBoard = new Array(SUDOKU_BOARD_LENGTH); 
         markerBoard = new Array(SUDOKU_BOARD_LENGTH); 
         quadrantBoard = new Array(SUDOKU_BOARD_LENGTH);
-        for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)
+        
+        for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
-            //add columns to boards
+            //Add columns to boards; At each index of the array add an Array object.
             puzzleBoard[i] = new Array(SUDOKU_BOARD_LENGTH);    
             markerBoard[i] = new Array(SUDOKU_BOARD_LENGTH);
             quadrantBoard[i] = new Array(SUDOKU_BOARD_LENGTH);
             
             //create marker list for each coordinate
-            for(j =0; j < SUDOKU_BOARD_LENGTH; j++)
+            for(var j =0; j < SUDOKU_BOARD_LENGTH; j++)
             {
+                //Put all the possible values for each coordinate
                 markerBoard[i][j] = [1,2,3,4,5,6,7,8,9]; 
             }    
         }
-
+        
         var coordinateCount = 0;
         //Populate puzzle board with given values
         for(i = 0; i < SUDOKU_BOARD_LENGTH; i++)//Iterate each row
@@ -62,62 +347,92 @@ $(document).ready(function()
             for(j=0; j< SUDOKU_BOARD_LENGTH; j++)
             {
                 coordinateCount++;
-                puzzleBoard[j][i] = Number($('#'+coordinateCount).val().charAt(0)); //add number into puzzle board
-                x = (j % 3) + (3 * (i % 3)); 
-                y = Math.floor(j / 3) + (3 * Math.floor(i / 3));
+                puzzleBoard[j][i] = Number($('#'+coordinateCount).val().charAt(0)); //Use user input to populate puzzle board. This is setting up the initial board.
+                x = (j % 3) + (3 * (i % 3)); //calculate x-coordinate 
+                y = Math.floor(j / 3) + (3 * Math.floor(i / 3)); //calculate y-coordinate
                 quadrantBoard[x][y] = i; //populate quadrant board
             }
-        }
-        
-        $.solve();
-        $.displayResults(puzzleBoard); 
-    });
-});
-
-(function($)
-{
+        } 
+    }
+    
+    /*
+     * Solves the sudoku puzzle logically.
+     * Algorithm (Backtracking, recusion)
+     * 1. Eliminate as many markers as possible using the following techniques:
+     *      -Sudoku Uniqueness Constraints 
+     *      -Pointing Pairs
+     *      -Pointing Triples 
+     *      -Line Box Reduction
+     *      -Naked Pairs
+     *      -Naked Triples
+     *      -Hidden Naked Pairs
+     * Then place number in coordinate if one marker exists or if there is only
+     * one marker number left in a specific region (quadrant, row, or column). 
+     * Repeat this step if any markers have been eliminated or a number has
+     * been place on a coordinate.
+     * 
+     * 2. Check if the puzzle is solved at this point. This step is necessary for
+     * recursion as one of the base cases.
+     * 
+     * 3. Check if the puzzle is invalid. Invalid Case: There is an coordinate in
+     * the puzzle board that has no value and there is no more possible choices
+     * (corresponding coordinate on marker board has no more possible values ) 
+     * for this coordinate. This step is necessary for recursion as one of the base cases.
+     * Also, this is necessary for backtracking since Bowman Bingo,
+     * which is bascially a trail and error technique, is used.
+     * 
+     * 4. Loop until there are no markers left on the marker board (to reiterate the marker board
+     * conatins all the possible values each coordinate for the current state of the puzzle board)
+     *      If a marker exist, use Bowman Bingo. Guess on the coordinate with the least number of markers; 
+     *      this will lessen the amount of backtracking as compare with selecting a coordinate
+     *      with many possible choices. Plus, there is a higher probablity of guessing the number
+     *      correctly when there are less markers.
+     *      Eliminate the guess number from the marker board. We can make this assumption because 
+     *      the number can be correct or incorrect. Make a copy of the current puzzle
+     *      board and marker board. This is necessary because if our guess is wrong we need to 
+     *      backtrack to the previous state when the puzzle board is still validate. Recurse by calling 
+     *      the function itself. Restore puzzle board and marker board.   
+     */
     $.solve = function()
     {
-        //Apply sudoku techniques here if puzzle board has empty spaces
-        var madeProgress = false; //Placement of tile or removal of markers is considered making progress
-        while(!$.isPuzzleBoardFilled(puzzleBoard))
+        var madeProgress = false; //Placement of tile or removal of markers is considered making progress  
+        
+        //Apply sudoku techniques here; exit loop when no progress is made 
+        do 
         {
-            madeProgress = $.sudokuConditionsMarkerEliminator(puzzleBoard, markerBoard, quadrantBoard); //Eliminate markers by sudoku game rules
-            madeProgress = $.horizontalMarkerSlice(markerBoard); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
-            madeProgress = $.verticalMarkerSlice(markerBoard); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
-            madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(markerBoard,quadrantBoard); //Inspect each row to find vertical markers isolated in a single quadrant in a region of three vertical, and eliminate marker numbers in current quadrant except the vertical markers  
-            madeProgress = $.quadrantMarkerReductionByIsolatedHorizontalLine(markerBoard,quadrantBoard); //Inspect each row to find horizontal markers isolated in a single quadrant in a region of three quadrant, and eliminate marker numbers in current quadrant except the horizontal markers 
-            madeProgress = $.pairMarkerSweeperQuadrant(markerBoard);//Find pair of coordinates with two remaining markers which are identical in quadrant
-            madeProgress = $.pairMarkerSweeperColumn(markerBoard);//Find pair of coordinates with two remaining markers which are identical in column
-            madeProgress = $.pairMarkerSweeperRow(markerBoard);//Find pair coordinates with two remaining markers which are identical in row
-            madeProgress = $.hiddenCloneMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for pair of coordinate with exact markers 
-            madeProgress = $.hiddenCloneMarkerCleanerColumn(markerBoard); //Inspect each column for pair of coordinates with exact markers
-            madeProgress = $.hiddenCloneMarkerCleanerRow(markerBoard); //Inspect each row for pair coordinates with exact markers 
-            madeProgress = $.hiddenTripleMarkerCleanerQuadrant(markerBoard); //Inspect each quadrant for triple coordinates with exact markers
-            madeProgress = $.hiddenTripleMarkerCleanerColumn(markerBoard); //Inspect each column for triple coordinates with exact markers 
-            madeProgress = $.hiddenTripleMarkerCleanerRow(markerBoard); //Inspect each row for triple coordinates with exact markers 
-            madeProgress = $.oneMarkerLeftPlacement(puzzleBoard, markerBoard);//Place number for coordinates with one marker left
-            madeProgress = $.lastNumberMarkerInQuadrantPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in quadrant             
-            madeProgress = $.lastNumberMarkerInColumnPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in column
-            madeProgress = $.lastNumberMarkerInRowPlacement(puzzleBoard, markerBoard); //Place number if and only if there is one marker number left in row
-            
-            if(!madeProgress)
-                 break;           
-        }
+            madeProgress = $.sudokuConditionsMarkerEliminator(); //Eliminate markers by sudoku game rules
+            madeProgress = $.horizontalMarkerSlice(); //Inspect each quadrant for horizontal markers and eliminate markers from other quadrant that on this horizontal line
+            madeProgress = $.verticalMarkerSlice(); //Inspect each quadrant for vertical markers and eliminate markers from other quadrant that on this vertical line
+            madeProgress = $.quadrantMarkerReductionByIsolatedVerticalLine(); //Inspect each row to find vertical markers isolated in a single quadrant in a region of three vertical, and eliminate marker numbers in current quadrant except the vertical markers  
+            madeProgress = $.quadrantMarkerReductionByIsolatedHorizontalLine(); //Inspect each row to find horizontal markers isolated in a single quadrant in a region of three quadrant, and eliminate marker numbers in current quadrant except the horizontal markers 
+            madeProgress = $.pairMarkerSweeperQuadrant();//Find pair of coordinates with two remaining markers which are identical in quadrant
+            madeProgress = $.pairMarkerSweeperColumn();//Find pair of coordinates with two remaining markers which are identical in column
+            madeProgress = $.pairMarkerSweeperRow();//Find pair coordinates with two remaining markers which are identical in row
+            madeProgress = $.hiddenCloneMarkerCleanerQuadrant(); //Inspect each quadrant for pair of coordinate with exact markers 
+            madeProgress = $.hiddenCloneMarkerCleanerColumn(); //Inspect each column for pair of coordinates with exact markers
+            madeProgress = $.hiddenCloneMarkerCleanerRow(); //Inspect each row for pair coordinates with exact markers 
+            madeProgress = $.hiddenTripleMarkerCleanerQuadrant(); //Inspect each quadrant for triple coordinates with exact markers
+            madeProgress = $.hiddenTripleMarkerCleanerColumn(); //Inspect each column for triple coordinates with exact markers 
+            madeProgress = $.hiddenTripleMarkerCleanerRow(); //Inspect each row for triple coordinates with exact markers 
+            madeProgress = $.oneMarkerLeftPlacement();//Place number for coordinates with one marker left
+            madeProgress = $.lastNumberMarkerInQuadrantPlacement(); //Place number if and only if there is one marker number left in quadrant             
+            madeProgress = $.lastNumberMarkerInColumnPlacement(); //Place number if and only if there is one marker number left in column
+            madeProgress = $.lastNumberMarkerInRowPlacement(); //Place number if and only if there is one marker number left in row        
+        }while(madeProgress);
         
         //Check if the puzzle board is solved
-        if($.isPuzzleBoardFilled(puzzleBoard) && $.validateSudokuConstraint(puzzleBoard))
+        if($.isPuzzleBoardFilled() && $.validateSudokuConstraint(puzzleBoard))
             return true;
       
         //Check if there are empty spaces on puzzle board with no possible values left => unsolvable case
-        if($.checkCoordinateWithNoPossibleValues(puzzleBoard, markerBoard))
+        if($.checkCoordinateWithNoPossibleValues())
             return false;
         
         //Iterate if there are coordinates with possible values left to choose from
-        while($.moreMarkersLeft(markerBoard))
+        while($.moreMarkersLeft())
         {
             //Find coordinate with the least number of choices
-            var coordinate = $.findCoordinateWithLeastPossibleChoices(puzzleBoard,markerBoard);
+            var coordinate = $.findCoordinateWithLeastPossibleChoices();
             var coordX = coordinate.x;
             var coordY = coordinate.y;
             
@@ -125,7 +440,7 @@ $(document).ready(function()
                 return false; //unsolvable case
             
             //get guess number from markerBoard and eliminate from marker board
-            var guessNumber = $.getGuessNumber(markerBoard, coordinate);
+            var guessNumber = $.getGuessNumber(coordinate);
             
             //deep copy of boards; object references in list object are differnt from original including the list object itself 
             var puzzleBoardDeepCopy = jQuery.extend(true, [], puzzleBoard);
@@ -149,11 +464,10 @@ $(document).ready(function()
     /*
      * Get the first non-zero number from markerboard at the given coordinate.
      * Eliminate the chosen number from marker board.
-     * @param - markerBoard[3D Array] contains the set of marker list for each coordinate
      * @param - coordinate [Object with x and y properties] position of the coordinate
      * @return - number from marker board
      */
-    $.getGuessNumber = function(markerBoard, coordinate)
+    $.getGuessNumber = function(coordinate)
     {
         for(var k = 0; k < SUDOKU_BOARD_LENGTH; k++)
         {
@@ -171,11 +485,9 @@ $(document).ready(function()
     
     /*
      * Finds the coordinate with the least possible choices
-     * @param - puzzleBoard [2D Array]
-     * @param - markerBoard [3D Array]
      * @return - coordinate object {'x': <value>, 'y': <value>}; otherwise {'x':-1, 'y': -1} for invalid case
      */
-    $.findCoordinateWithLeastPossibleChoices = function(puzzleBoard, markerBoard)
+    $.findCoordinateWithLeastPossibleChoices = function()
     {
         var coordinate = {'x': -1, 'y': -1};
         var leastMarkerCount = 100;
@@ -197,7 +509,6 @@ $(document).ready(function()
                              markerCount++; //increment non-zero markers    
                     }
                     
-                    
                     if(markerCount != 0 && markerCount < leastMarkerCount)
                     {
                          leastMarkerCount = markerCount; //new lowest value
@@ -214,10 +525,9 @@ $(document).ready(function()
     
     /*
      * Determines if there are any more markers left.
-     * @param - markerBoard [3D Array]
      * @return - true if there are markers left; otherwise false
      */
-    $.moreMarkersLeft = function (markerBoard)
+    $.moreMarkersLeft = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -238,11 +548,9 @@ $(document).ready(function()
     /*
      * Determines if there are any coordinates that is empty and has no possible value left.
      * If yes, this determines that the puzzle is unsolvable.
-     * @param - puzzleBoard [2D Array]
-     * @param - markerBoard [3D Array]
      * @return - true if puzzle is still solvable; false otherwise 
      */
-    $.checkCoordinateWithNoPossibleValues = function(puzzleBoard, markerBoard)
+    $.checkCoordinateWithNoPossibleValues = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -277,10 +585,9 @@ $(document).ready(function()
     
     /*
      * Determines if the puzzle board is completed.
-     * @param - puzzleBoard [2D Array]
      * @return - true if puzzle is completed; false otherwise.
      */
-    $.isPuzzleBoardFilled = function(puzzleBoard)
+    $.isPuzzleBoardFilled = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -294,36 +601,12 @@ $(document).ready(function()
     }
     
     /*
-     *Recursively square each element in array.
-     *@param list
-     *@param length
-     *[Testing Method]
-     */
-    $.recursiveSquaring = function(list, length)
-    {
-        console.log(length);
-        if(length == 0)
-            return list;
-        
-        else
-        {
-            list[length] = list[length] * list[length];
-            var newList = $.recursiveSquaring(list, length - 1);
-            console.log(length);
-            return newList;
-        } 
-    }
-    
-    /*
      * Looks at the current board and eliminates the markers
      * by applying sudoku row, column, and quadrant number 
      * uniqueness conditions.
-     * @param - puzzleBoard [2D Array] contains the current puzzle
-     * @param - markerBoard [3D Array] contains the the possible values for each coordinate
-     * @param - quadrantBoard [2D Array] conatins the quadrant indicator for each coordinate
      * @return - true if any marker has been eliminated; false otherwise
      */
-    $.sudokuConditionsMarkerEliminator = function(puzzleBoard, markerBoard, quadrantBoard)
+    $.sudokuConditionsMarkerEliminator = function()
     {
         var madeProgress = false; //Placement of tile or removal of markers is considered making progress
             
@@ -373,100 +656,6 @@ $(document).ready(function()
         return madeProgress;
     }
     
-    
-    /*
-     * Calculates the cartesian product of the remaining markers.
-     * @param - markerBoard [3D Array]
-     * @return - [List of Arrays] may contain possible solution to puzzle
-     * [Not used]
-     */
-    $.enumerateAllPossibilities = function(markerBoard)
-    {
-        //$.printMarkerBoardByQuadrant(markerBoard);
-        //Enumerate all possibilities
-        var cartProd = $.cartesianProduct
-        (
-            $.removeElementsWithValue(markerBoard[0][0],0),$.removeElementsWithValue(markerBoard[0][1],0),$.removeElementsWithValue(markerBoard[0][2],0),$.removeElementsWithValue(markerBoard[0][3],0),$.removeElementsWithValue(markerBoard[0][4],0),$.removeElementsWithValue(markerBoard[0][5],0),$.removeElementsWithValue(markerBoard[0][6],0),$.removeElementsWithValue(markerBoard[0][7],0),$.removeElementsWithValue(markerBoard[0][8],0),
-            $.removeElementsWithValue(markerBoard[1][0],0),$.removeElementsWithValue(markerBoard[1][1],0),$.removeElementsWithValue(markerBoard[1][2],0),$.removeElementsWithValue(markerBoard[1][3],0),$.removeElementsWithValue(markerBoard[1][4],0),$.removeElementsWithValue(markerBoard[1][5],0),$.removeElementsWithValue(markerBoard[1][6],0),$.removeElementsWithValue(markerBoard[1][7],0),$.removeElementsWithValue(markerBoard[1][8],0),
-            $.removeElementsWithValue(markerBoard[2][0],0),$.removeElementsWithValue(markerBoard[2][1],0),$.removeElementsWithValue(markerBoard[2][2],0),$.removeElementsWithValue(markerBoard[2][3],0),$.removeElementsWithValue(markerBoard[2][4],0),$.removeElementsWithValue(markerBoard[2][5],0),$.removeElementsWithValue(markerBoard[2][6],0),$.removeElementsWithValue(markerBoard[2][7],0),$.removeElementsWithValue(markerBoard[2][8],0),
-            $.removeElementsWithValue(markerBoard[3][0],0),$.removeElementsWithValue(markerBoard[3][1],0),$.removeElementsWithValue(markerBoard[3][2],0),$.removeElementsWithValue(markerBoard[3][3],0),$.removeElementsWithValue(markerBoard[3][4],0),$.removeElementsWithValue(markerBoard[3][5],0),$.removeElementsWithValue(markerBoard[3][6],0),$.removeElementsWithValue(markerBoard[3][7],0),$.removeElementsWithValue(markerBoard[3][8],0),
-            $.removeElementsWithValue(markerBoard[4][0],0),$.removeElementsWithValue(markerBoard[4][1],0),$.removeElementsWithValue(markerBoard[4][2],0),$.removeElementsWithValue(markerBoard[4][3],0),$.removeElementsWithValue(markerBoard[4][4],0),$.removeElementsWithValue(markerBoard[4][5],0),$.removeElementsWithValue(markerBoard[4][6],0),$.removeElementsWithValue(markerBoard[4][7],0),$.removeElementsWithValue(markerBoard[4][8],0),
-            $.removeElementsWithValue(markerBoard[5][0],0),$.removeElementsWithValue(markerBoard[5][1],0),$.removeElementsWithValue(markerBoard[5][2],0),$.removeElementsWithValue(markerBoard[5][3],0),$.removeElementsWithValue(markerBoard[5][4],0),$.removeElementsWithValue(markerBoard[5][5],0),$.removeElementsWithValue(markerBoard[5][6],0),$.removeElementsWithValue(markerBoard[5][7],0),$.removeElementsWithValue(markerBoard[5][8],0),
-            $.removeElementsWithValue(markerBoard[6][0],0),$.removeElementsWithValue(markerBoard[6][1],0),$.removeElementsWithValue(markerBoard[6][2],0),$.removeElementsWithValue(markerBoard[6][3],0),$.removeElementsWithValue(markerBoard[6][4],0),$.removeElementsWithValue(markerBoard[6][5],0),$.removeElementsWithValue(markerBoard[6][6],0),$.removeElementsWithValue(markerBoard[6][7],0),$.removeElementsWithValue(markerBoard[6][8],0),
-            $.removeElementsWithValue(markerBoard[7][0],0),$.removeElementsWithValue(markerBoard[7][1],0),$.removeElementsWithValue(markerBoard[7][2],0),$.removeElementsWithValue(markerBoard[7][3],0),$.removeElementsWithValue(markerBoard[7][4],0),$.removeElementsWithValue(markerBoard[7][5],0),$.removeElementsWithValue(markerBoard[7][6],0),$.removeElementsWithValue(markerBoard[7][7],0),$.removeElementsWithValue(markerBoard[7][8],0),
-            $.removeElementsWithValue(markerBoard[8][0],0),$.removeElementsWithValue(markerBoard[8][1],0),$.removeElementsWithValue(markerBoard[8][2],0),$.removeElementsWithValue(markerBoard[8][3],0),$.removeElementsWithValue(markerBoard[8][4],0),$.removeElementsWithValue(markerBoard[8][5],0),$.removeElementsWithValue(markerBoard[8][6],0),$.removeElementsWithValue(markerBoard[8][7],0),$.removeElementsWithValue(markerBoard[8][8],0)
-        );
-
-        if(cartProd != null)
-            console.log(cartProd);
-    }
-    
-    /*
-     * Remove a given element from array.
-     * @param arr [Array]
-     * @param val element to remove from array 
-     */
-    $.removeElementsWithValue = function(arr, val) 
-    {
-        var i = arr.length;
-        while (i--) {
-            if (arr[i] === val) {
-                arr.splice(i, 1);
-            }
-        }
-        return arr;
-    }
-    
-    /*
-     * Get the cartesian product of the elements given
-     * in the list of arrays. 
-     * @return - list of arrays with the results of the cartesian product
-     * Note: This method will overload the program and the program will crash.
-     * [Not used]
-     */
-    $.cartesianProduct = function() 
-    {
-        $.addTo = function(curr, args) 
-        {
-            var i, copy, 
-                rest = args.slice(1),
-                last = !rest.length,
-                result = [];
-
-            for (i = 0; i < args[0].length; i++) 
-            {
-                copy = curr.slice();
-                copy.push(args[0][i]);
-
-                if (last) 
-                  result.push(copy);
-
-                else 
-                  result = result.concat($.addTo(copy, rest));
-            }
-
-            return result;
-        }
-  
-        //Get arguments and get Array functionailties
-        var arrayList =  Array.prototype.slice.call(arguments); 
-        var arrayListLength = arrayList.length;
-        var startIndex = arrayListLength - 1;
-        
-        //Remove all the empty arrays from argument
-        //Iterate reverse to prevent index recalcuation
-        for(var a = startIndex ; a >= 0; a--)
-        {
-           if(arrayList[a].length == 0)
-               arrayList.splice(a,1);
-        }
-        
-        if(arrayList.length == 0)
-            return null;
-        
-        return $.addTo([], arrayList); //call function to apply cartestian product
-    }
-    
     /*
      * Inspect each column for horizontal line markers isolated in a single quadrant
      * in a given region. The three regions are made of the following quadrant: 
@@ -475,11 +664,9 @@ $(document).ready(function()
      * region 3 (VII, VIII, IX)
      * Eliminate horizontal marker number from quadrant except for the coordinates 
      * that form the horizonatal line if a isolated horizontal markers line is found.
-     * @param - markerBoard [3D Array] contains marker list of each coordinate
-     * @param - quadrantBoard [2D Array] contains the quadrant for each coordinate
      * return - true if any markers are eliminated; false otherwise
      */
-    $.quadrantMarkerReductionByIsolatedHorizontalLine = function (markerBoard,quadrantBoard)
+    $.quadrantMarkerReductionByIsolatedHorizontalLine = function()
     {   
         var madeProgress = false;
         
@@ -559,11 +746,9 @@ $(document).ready(function()
      * region 3 (III, VI, IX)
      * Eliminate vertical marker number from quadrant except for the coordinates 
      * that form the vertical line if a isolated vertical markers line is found.
-     * @param - markerBoard [3D Array] contains marker list of each coordinate
-     * @param - quadrantBoard [2D Array] contains the quadrant for each coordinate
      * return - true if any markers are eliminated; false otherwise
      */
-    $.quadrantMarkerReductionByIsolatedVerticalLine = function (markerBoard,quadrantBoard)
+    $.quadrantMarkerReductionByIsolatedVerticalLine = function()
     {   
         var madeProgress = false;
         
@@ -637,9 +822,8 @@ $(document).ready(function()
     
     /*
      * Display results on the front-end side.
-     * @param - puzzleBoard [2D Array]
      */
-    $.displayResults = function(puzzleBoard)
+    $.displayResults = function()
     {
         var coordinateCount = 0;
         
@@ -665,10 +849,9 @@ $(document).ready(function()
      * 1 0 0 0 0 0 0 0 9
      * 1 0 0 0 0 0 0 0 9
      * Eliminate 1 and 9 markers from the other coordinates in row. 
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise
      */
-    $.pairMarkerSweeperRow = function(markerBoard)
+    $.pairMarkerSweeperRow = function()
     {
         var madeProgress = false;
         
@@ -739,10 +922,9 @@ $(document).ready(function()
      * 1 0 0 0 0 0 0 0 9
      * 1 0 0 0 0 0 0 0 9
      * Eliminate 1 and 9 markers from the other coordinates in column. 
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise
      */
-    $.pairMarkerSweeperColumn = function(markerBoard)
+    $.pairMarkerSweeperColumn = function()
     {
         var madeProgress = false;
         
@@ -813,10 +995,9 @@ $(document).ready(function()
      * 1 0 0 0 0 0 0 0 9
      * 1 0 0 0 0 0 0 0 9
      * Eliminate 1 and 9 markers from the other coordinates in quadrant. 
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise
      */
-    $.pairMarkerSweeperQuadrant = function(markerBoard)
+    $.pairMarkerSweeperQuadrant = function()
     {
         var madeProgress = false;
         
@@ -897,10 +1078,9 @@ $(document).ready(function()
      * 0 2 0 0 5 0 0 8 9 
      * 0 2 0 0 0 0 0 8 9 
      * 0 2 0 0 0 0 0 8 9 
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenTripleMarkerCleanerRow = function(markerBoard)
+    $.hiddenTripleMarkerCleanerRow = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -1063,10 +1243,9 @@ $(document).ready(function()
      * 0 2 0 0 5 0 0 8 9 
      * 0 2 0 0 0 0 0 8 9 
      * 0 2 0 0 0 0 0 8 9 
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenTripleMarkerCleanerColumn = function(markerBoard)
+    $.hiddenTripleMarkerCleanerColumn = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -1229,10 +1408,9 @@ $(document).ready(function()
      * 0 2 0 0 5 0 0 8 9 
      * 0 2 0 0 0 0 0 8 9 
      * 0 2 0 0 0 0 0 8 9 
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenTripleMarkerCleanerQuadrant = function(markerBoard)
+    $.hiddenTripleMarkerCleanerQuadrant = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -1398,10 +1576,9 @@ $(document).ready(function()
      * markers can be eliminated.
      * 1 2 3 0 0 0 0 0 9 [hidden clone] 2 and 3 can be removed
      * 1 0 0 0 0 0 0 0 9
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenCloneMarkerCleanerRow = function(markerBoard)
+    $.hiddenCloneMarkerCleanerRow = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -1525,10 +1702,9 @@ $(document).ready(function()
      * markers can be eliminated.
      * 1 2 3 0 0 0 0 0 9 [hidden clone] 2 and 3 can be removed.
      * 1 0 0 0 0 0 0 0 9
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenCloneMarkerCleanerColumn = function(markerBoard)
+    $.hiddenCloneMarkerCleanerColumn = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -1653,10 +1829,9 @@ $(document).ready(function()
      * markers can be eliminated.
      * 1 2 3 0 0 0 0 0 9 [hidden clone] 2 and 3 can be removed.
      * 1 0 0 0 0 0 0 0 9
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise  
      */
-    $.hiddenCloneMarkerCleanerQuadrant = function(markerBoard)
+    $.hiddenCloneMarkerCleanerQuadrant = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -1782,11 +1957,10 @@ $(document).ready(function()
      * that contains the marker number(s). Inspect each quadrant for vertical
      * markers. If a number with vertical is found, eliminate markers from 
      * vertical line excluding the markers in the inspected quadrant.
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise.
      * Note: There is a redundancy for isolated markers elimination. 
      */
-    $.verticalMarkerSlice = function(markerBoard)
+    $.verticalMarkerSlice = function()
     {
         var madeProgress = false;
             
@@ -1876,11 +2050,10 @@ $(document).ready(function()
      * that contains the marker number(s). Inspect each quadrant for horizontal
      * markers. If a number with horizontal is found, eliminate markers from 
      * horizontal line excluding the markers in the inspected quadrant.
-     * @param - markerBoard [3D Array] contains marker list for each coordinate
      * @return - true if any markers are eliminated; false otherwise.
      * Note: There is a redundancy for isolated markers elimination. 
      */
-    $.horizontalMarkerSlice = function(markerBoard)
+    $.horizontalMarkerSlice = function()
     {
         var madeProgress = false;
             
@@ -1967,11 +2140,9 @@ $(document).ready(function()
     }
     
     /* Inspect each row for isolated markers and place number on board.
-     * @param - puzzleBoard [2D Array] - placement of numbers may happen
-     * @param - markerBoard [3D Array] - contains marker list for each coordinate
      * @return true if a number has been placed; otherwise false 
      */
-    $.lastNumberMarkerInRowPlacement = function (puzzleBoard, markerBoard)
+    $.lastNumberMarkerInRowPlacement = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -2026,11 +2197,9 @@ $(document).ready(function()
     }
     
     /* Inspect each column for isolated markers and place number on board.
-     * @param - puzzleBoard [2D Array] - placement of numbers may happen
-     * @param - markerBoard [3D Array] - contains marker list for each coordinate
      * @return true if a number has been placed; otherwise false 
      */
-    $.lastNumberMarkerInColumnPlacement = function (puzzleBoard, markerBoard)
+    $.lastNumberMarkerInColumnPlacement = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -2085,11 +2254,9 @@ $(document).ready(function()
     }
     
     /* Inspect each quadrant for isolated markers and place number on board.
-     * @param - puzzleBoard [2D Array] - placement of numbers may happen
-     * @param - markerBoard [3D Array] - contains marker list for each coordinate
      * @return true if a number has been placed; otherwise false 
      */
-    $.lastNumberMarkerInQuadrantPlacement = function (puzzleBoard, markerBoard)
+    $.lastNumberMarkerInQuadrantPlacement = function()
     {
         var madeProgress = false;
         var markerCounter = [0,0,0,0,0,0,0,0,0,0];
@@ -2148,11 +2315,9 @@ $(document).ready(function()
     
     /*
      * Place tiles on the puzzle for coordinates that have only one marker left.
-     * @param - puzzleBoard [2D Array] - placement of number may happen 
-     * @param - markerBoard [3D Array] - contains markerList for each coordinate
      * @return - true if a number has been placed; otherwise false
      */
-    $.oneMarkerLeftPlacement = function(puzzleBoard, markerBoard)
+    $.oneMarkerLeftPlacement = function()
     {
         var madeProgress = false;
         
@@ -2215,9 +2380,8 @@ $(document).ready(function()
    
    /*
     * Print marker list of each coordinate by row
-    * @param - markerBoard [3D Array]
     */
-    $.printMarkerBoardByRow = function(markerBoard)
+    $.printMarkerBoardByRow = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -2236,9 +2400,8 @@ $(document).ready(function()
     
     /*
      * Print marker list of each coordinate by column
-     * @param - markerBoard [3D Array]
      */
-    $.printMarkerBoardByColumn = function(markerBoard)
+    $.printMarkerBoardByColumn = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -2257,9 +2420,8 @@ $(document).ready(function()
     
     /*
      * Print marker list of each coordinate by quadrant
-     * @param - markerBoard [3D Array]
      */
-    $.printMarkerBoardByQuadrant = function(markerBoard)
+    $.printMarkerBoardByQuadrant = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -2281,9 +2443,8 @@ $(document).ready(function()
     
     /*
      * Print puzzle board.
-     * @param - puzzleBoard [2D Array] 
      */
-    $.printPuzzleBoard = function(puzzleBoard)
+    $.printPuzzleBoard = function()
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
@@ -2297,15 +2458,15 @@ $(document).ready(function()
     }
     
     /*
-     * Validate the data of user input for a row.
-     * Length of row must be nine. Only accept numbers. 
-     * @param - rowArray [String] An array of characters 
+     * Validate the data of user for a single coordinate.
+     * Only accept numbers. 
+     * @param - number 
      * @return - true if validation passes; false otherwise
      */
-    $.validateData = function(rowArray)
+    $.validateData = function(number)
     {
-        var digitRegex = new RegExp(/^[0-9]{9}$/);
-        return (rowArray.match(digitRegex) == null)? false : true;    
+        var digitRegex = new RegExp(/^[0-9]{1}$/);
+        return (number.match(digitRegex) == null)? false : true;    
     }
     
     /*
@@ -2314,7 +2475,7 @@ $(document).ready(function()
      * 1) Each row must not contain duplicate numbers [1 -9].
      * 2) Each column must not contain duplicate numbers [1-9].
      * 3) Each quadrant must not contain duplicate numbers.
-     * @param - puzzleBoard [2D Array] the current state of the sudoku board
+     * @param - puzzleBoard
      * @return - true if validation passes; false otherwise
      */
     $.validateSudokuConstraint = function(puzzleBoard)
@@ -2344,41 +2505,39 @@ $(document).ready(function()
     
     /*
      * Calculate counter array for a row.
-     * @param - puzzleBoard [2D Array] current state of sudoku puzzle board
+     * @param - puzzleBoard
      * @param - rowCounterArray [Array] increment value for corresponding index (use tile value)
      * @param - selectedRow [int] the selected row to look at (A = 0, B =1, ... , I = 8 )
      */
-    $.calculateRowCounters = function(puzzleBoard, rowCounterArray, selectedRow)
+    $.calculateRowCounters = function(puzzleBoard,rowCounterArray, selectedRow)
     {
         for(var i = 0; i < SUDOKU_BOARD_LENGTH; i++)
         {
               rowCounterArray[puzzleBoard[i][selectedRow]]++;
-              //console.log("(" + i + "," + selectedRow + ")");
         }
     }
     
     /*
      * Calculate counter array for a column.
-     * @param - puzzleBoard [2D Array] current state of sudoku puzzle board
+     * @param - puzzleBoard
      * @param - columnCounterArray [Array] increment value for corresponding index (use tile value)
      * @param - selectedColumn [int] the selected column to look at (A = 0, B =1, ... , I = 8 )
      */
-    $.calculateColumnCounters = function(puzzleBoard, columnCounterArray, selectedColumn)
+    $.calculateColumnCounters = function(puzzleBoard,columnCounterArray, selectedColumn)
     {
         for(var j = 0; j < SUDOKU_BOARD_LENGTH; j++)
         {
               columnCounterArray[puzzleBoard[selectedColumn][j]]++;
-              //console.log("(" + selectedColumn  + "," + j + ")");
         }
     }
     
     /*
      * Calculate counter array for a quadrant.
-     * @param - puzzleBoard [2D Array] current state of sudoku puzzle board
+     * @param - puzzleBoard
      * @param - quadrantCounterArray [Array] increment value for corresponding index (use tile value)
      * @param - selectedQuadrant [int] the selected quadrant to look coordinate system (I = 0, II = 1, ..., XI = 8)
      */
-    $.calculateQuadrantCounters = function(puzzleBoard, quadrantCounterArray, selectedQuadrant)
+    $.calculateQuadrantCounters = function(puzzleBoard,quadrantCounterArray, selectedQuadrant)
     {
         var x = 0;
         var y = 0;
@@ -2388,7 +2547,6 @@ $(document).ready(function()
             x = (k % 3) + (3 * (selectedQuadrant % 3)); 
             y = Math.floor(k / 3) + (3 * Math.floor(selectedQuadrant / 3));
             quadrantCounterArray[puzzleBoard[x][y]]++;
-            //console.log("(" + x + "," + y + ")");
         }
     }
     
