@@ -34,7 +34,7 @@ Sudoku Game Conditions (Sudoku Uniqueness Constraints)
 Implementation
 ============ 
 Algorithm: Backtracking with recursion. Several constraints are applied to reduce the depth of recursion.  
-** Data Structures: **  
+**Data Structures:**  
 2D Array to represent the Sudoku board.  
 3D Array to represent the marker board. The marker board contains all the possible values of each square can take. This marker plays an important role in solving the puzzle.
 
